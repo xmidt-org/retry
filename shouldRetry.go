@@ -36,7 +36,10 @@ func SetRetryable(err error, retryable bool) error {
 //   - if err == nil, this function returns false (i.e. the operation succeeded, so retries make no sense)
 //   - if err or anything in its error chain implements ShouldRetryable, then err.ShouldRetry() is returned
 //   - if p != nil, then p(err) is returned
-//   - for a non-nil error with none of the above ways to determine retryability, this function returns false
+//   - for a non-nil error with none of the above ways to determine retryability, this function returns true
+//
+// Essentially, this function assumes all errors are retryable unless the
+// error itself or the predicate indicate otherwise.
 func ShouldRetry(err error, p func(error) bool) bool {
 	var sr ShouldRetryable
 
@@ -51,6 +54,6 @@ func ShouldRetry(err error, p func(error) bool) bool {
 		return p(err)
 
 	default:
-		return false
+		return true
 	}
 }

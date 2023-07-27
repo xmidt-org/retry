@@ -99,9 +99,9 @@ func (suite *ShouldRetrySuite) TestPredicate() {
 }
 
 func (suite *ShouldRetrySuite) TestFallthrough() {
-	suite.False(
+	suite.True(
 		ShouldRetry(
-			errors.New("no other way to determine retryability for this error"),
+			errors.New("by default, all errors are retryable"),
 			nil,
 		),
 	)
