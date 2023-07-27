@@ -13,7 +13,7 @@ type Options struct {
 
 	// ShouldRetry is an optional predicate for determining whether an error should
 	// prevent further retries.  If this field is unset, then either the error is consulted
-	// (via the Retryable interface) or a retry is prevented.
+	// (via the ShouldRetryable interface) or a retry is prevented.
 	ShouldRetry func(error) bool
 
 	// OnFail is an optional closure that is invoked each time a task fails, including
