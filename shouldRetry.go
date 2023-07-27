@@ -3,7 +3,7 @@ package retry
 import "errors"
 
 // ShouldRetryable is an interface that errors may implement to signal
-// to an Executor whether an error should prevent or allow
+// to an task runner whether an error should prevent or allow
 // future retries.
 type ShouldRetryable interface {
 	// ShouldRetry indicates whether this error should stop all future
