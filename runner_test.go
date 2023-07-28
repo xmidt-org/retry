@@ -109,14 +109,7 @@ func (suite *RunnerSuite) testRunCtxCancel() {
 	})
 
 	actualErr := r.RunCtx(expectedCtx, task.DoCtx)
-
-	select {
-	case <-expectedCtx.Done():
-		suite.Same(expectedCtx.Err(), actualErr)
-
-	case <-time.After(time.Second):
-		suite.Fail("context was not canceled")
-	}
+	suite.Same(expectedCtx.Err(), actualErr)
 
 	sleep.AssertExpectations(suite.T())
 	task.AssertExpectations(suite.T())
@@ -210,10 +203,6 @@ func (suite *RunnerSuite) TestRunCtx() {
 	suite.Run("Cancel", suite.testRunCtxCancel)
 }
 
-func TestRunner(t *testing.T) {
-	suite.Run(t, new(RunnerSuite))
-}
-
 func (suite *RunnerSuite) TestNewRunnerOptionError() {
 	expectedErr := errors.New("expected")
 	r, actualErr := NewRunner(func(*coreRunner) error {
@@ -222,6 +211,10 @@ func (suite *RunnerSuite) TestNewRunnerOptionError() {
 
 	suite.Error(actualErr)
 	suite.Nil(r)
+}
+
+func TestRunner(t *testing.T) {
+	suite.Run(t, new(RunnerSuite))
 }
 
 type RunnerWithDataSuite struct {
