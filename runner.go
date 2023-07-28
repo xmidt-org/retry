@@ -101,7 +101,7 @@ type runner struct {
 	coreRunner
 }
 
-func (r runner) Run(task func() error) (err error) {
+func (r *runner) Run(task func() error) (err error) {
 	var (
 		p            = r.newPolicy()
 		interval     time.Duration
@@ -120,18 +120,20 @@ func (r runner) Run(task func() error) (err error) {
 	return
 }
 
-func (r runner) RunCtx(ctx context.Context, task func(context.Context) error) (err error) {
+func (r *runner) RunCtx(ctx context.Context, task func(context.Context) error) (err error) {
 	var (
 		p            = r.newPolicy()
 		interval     time.Duration
 		keepRetrying = true
 	)
 
-	for err = ctx.Err(); keepRetrying && err == nil; err = ctx.Err() {
+	for keepRetrying && ctx.Err() == nil {
 		err = task(ctx)
 		if !r.handleTaskError(err, interval) {
 			break
-		} else if err = ctx.Err(); err != nil {
+		} else if ctx.Err() != nil {
+			// cancelation takes precedence over task errors
+			err = ctx.Err()
 			break
 		}
 
@@ -143,7 +145,7 @@ func (r runner) RunCtx(ctx context.Context, task func(context.Context) error) (e
 
 // NewRunner creates a Runner using the supplied set of options.
 func NewRunner(opts ...RunnerOption) (Runner, error) {
-	r := runner{
+	r := &runner{
 		coreRunner: coreRunner{
 			sleep: time.Sleep,
 		},
@@ -182,7 +184,7 @@ type runnerWithData[V any] struct {
 	coreRunner
 }
 
-func (r runnerWithData[V]) Run(task func() (V, error)) (result V, err error) {
+func (r *runnerWithData[V]) Run(task func() (V, error)) (result V, err error) {
 	var (
 		p            = r.newPolicy()
 		interval     time.Duration
@@ -201,7 +203,7 @@ func (r runnerWithData[V]) Run(task func() (V, error)) (result V, err error) {
 	return
 }
 
-func (r runnerWithData[V]) RunCtx(ctx context.Context, task func(context.Context) (V, error)) (result V, err error) {
+func (r *runnerWithData[V]) RunCtx(ctx context.Context, task func(context.Context) (V, error)) (result V, err error) {
 	var (
 		p            = r.newPolicy()
 		interval     time.Duration
@@ -225,7 +227,7 @@ func (r runnerWithData[V]) RunCtx(ctx context.Context, task func(context.Context
 // NewRunnerWithData creates a RunnerWithData using the supplied set of options.  All tasks
 // executed by the returned runner must return a value of type V in addition to an error.
 func NewRunnerWithData[V any](opts ...RunnerOption) (RunnerWithData[V], error) {
-	r := runnerWithData[V]{
+	r := &runnerWithData[V]{
 		coreRunner: coreRunner{
 			sleep: time.Sleep,
 		},

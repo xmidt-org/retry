@@ -7,7 +7,7 @@ import (
 )
 
 // CommonSuite has a few utilities that are commonly useful for
-// unit tests in this package.
+// policy unit tests in this package.
 type CommonSuite struct {
 	suite.Suite
 }
