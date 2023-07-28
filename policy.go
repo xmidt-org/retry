@@ -4,11 +4,11 @@ import (
 	"time"
 )
 
-// PolicyFactory is a strategy for creating backoff policies.  The Config
+// PolicyFactory is a strategy for creating retry policies.  The Config
 // type is an example of an implementation of this interface that can be
 // unmarshaled from an external source.
 type PolicyFactory interface {
-	// NewPolicy creates the backoff Policy this factory is configured to make.
+	// NewPolicy creates the retry Policy this factory is configured to make.
 	NewPolicy() Policy
 }
 
@@ -17,7 +17,7 @@ type PolicyFactoryFunc func() Policy
 
 func (pff PolicyFactoryFunc) NewPolicy() Policy { return pff() }
 
-// Policy is a backoff algorithm.  Policies are not safe for concurrent use.
+// Policy is a retry algorithm.  Policies are not safe for concurrent use.
 // A Policy should be created each time an operation is to be executed.
 type Policy interface {
 	// Next obtains the retry interval to use next.  Typically, a caller will

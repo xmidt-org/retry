@@ -7,6 +7,12 @@ import (
 
 // Config represents the possible options when creating a Policy.  This type is friendly
 // to being unmarshaled from external sources.
+//
+// Three basic kinds of retry policies are created by this type:
+//
+//   - if Interval is nonpositive, the created policy will never retry anything
+//   - if Interval is positive but Jitter and Multiplier are not, the created policy will return a constant, unchanging retry interval
+//   - if Interval is positive and Jitter or Multiplier are as well, the created policy will return an exponentially increasing retry interval
 type Config struct {
 	// Interval specifies the retry interval for a constant backoff and the
 	// initial, starting interval for an exponential backoff.
@@ -43,7 +49,7 @@ type Config struct {
 }
 
 // NewPolicy implements PolicyFactory and uses this configuration to create the type
-// of backoff dictated by Config.Type.
+// of retry policy indicated by the Interval, Jitter, and Multiplier fields.
 func (c Config) NewPolicy() Policy {
 	if c.Interval <= 0 {
 		return never{}
