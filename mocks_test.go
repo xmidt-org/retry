@@ -62,3 +62,25 @@ func (m *mockTask) DoCtx(ctx context.Context) error {
 func (m *mockTask) ExpectCtx(ctx context.Context, err error) *mock.Call {
 	return m.On("DoCtx", ctx).Return(err)
 }
+
+type mockTaskWithData[V any] struct {
+	mock.Mock
+}
+
+func (m *mockTaskWithData[V]) Do() (V, error) {
+	args := m.Called()
+	return args.Get(0).(V), args.Error(1)
+}
+
+func (m *mockTaskWithData[V]) Expect(result V, err error) *mock.Call {
+	return m.On("Do").Return(result, err)
+}
+
+func (m *mockTaskWithData[V]) DoCtx(ctx context.Context) (V, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(V), args.Error(1)
+}
+
+func (m *mockTaskWithData[V]) ExpectCtx(ctx context.Context, result V, err error) *mock.Call {
+	return m.On("DoCtx", ctx).Return(result, err)
+}

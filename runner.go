@@ -103,18 +103,18 @@ type runner struct {
 
 func (r *runner) Run(task func() error) (err error) {
 	var (
-		p            = r.newPolicy()
-		interval     time.Duration
-		keepRetrying = true
+		p          = r.newPolicy()
+		interval   time.Duration
+		keepTrying = true
 	)
 
-	for keepRetrying {
+	for keepTrying {
 		err = task()
 		if !r.handleTaskError(err, interval) {
 			break
 		}
 
-		interval, keepRetrying = r.doSleep(p)
+		interval, keepTrying = r.doSleep(p)
 	}
 
 	return
@@ -122,12 +122,12 @@ func (r *runner) Run(task func() error) (err error) {
 
 func (r *runner) RunCtx(ctx context.Context, task func(context.Context) error) (err error) {
 	var (
-		p            = r.newPolicy()
-		interval     time.Duration
-		keepRetrying = true
+		p          = r.newPolicy()
+		interval   time.Duration
+		keepTrying = true
 	)
 
-	for keepRetrying && ctx.Err() == nil {
+	for keepTrying && ctx.Err() == nil {
 		err = task(ctx)
 		if !r.handleTaskError(err, interval) {
 			break
@@ -137,7 +137,7 @@ func (r *runner) RunCtx(ctx context.Context, task func(context.Context) error) (
 			break
 		}
 
-		interval, keepRetrying = r.doSleep(p)
+		interval, keepTrying = r.doSleep(p)
 	}
 
 	return
@@ -186,18 +186,18 @@ type runnerWithData[V any] struct {
 
 func (r *runnerWithData[V]) Run(task func() (V, error)) (result V, err error) {
 	var (
-		p            = r.newPolicy()
-		interval     time.Duration
-		keepRetrying = true
+		p          = r.newPolicy()
+		interval   time.Duration
+		keepTrying = true
 	)
 
-	for keepRetrying {
+	for keepTrying {
 		result, err = task()
 		if !r.handleTaskError(err, interval) {
 			break
 		}
 
-		interval, keepRetrying = r.doSleep(p)
+		interval, keepTrying = r.doSleep(p)
 	}
 
 	return
@@ -205,20 +205,22 @@ func (r *runnerWithData[V]) Run(task func() (V, error)) (result V, err error) {
 
 func (r *runnerWithData[V]) RunCtx(ctx context.Context, task func(context.Context) (V, error)) (result V, err error) {
 	var (
-		p            = r.newPolicy()
-		interval     time.Duration
-		keepRetrying = true
+		p          = r.newPolicy()
+		interval   time.Duration
+		keepTrying = true
 	)
 
-	for err = ctx.Err(); keepRetrying && err == nil; err = ctx.Err() {
+	for keepTrying && ctx.Err() == nil {
 		result, err = task(ctx)
 		if !r.handleTaskError(err, interval) {
 			break
-		} else if err = ctx.Err(); err != nil {
+		} else if ctx.Err() != nil {
+			// cancelation takes precedence over task errors
+			err = ctx.Err()
 			break
 		}
 
-		interval, keepRetrying = r.doSleep(p)
+		interval, keepTrying = r.doSleep(p)
 	}
 
 	return
