@@ -18,28 +18,15 @@ func Prototype(prototype *http.Request) RequestFactory {
 // PrototypeBytes clones a given request and produces a distinct Body and
 // GetBody for each task attempt.
 func PrototypeBytes(prototype *http.Request, body []byte) RequestFactory {
-	return func(ctx context.Context) (*http.Request, error) {
-		request := prototype.Clone(ctx)
-		request.Body = io.NopCloser(
-			bytes.NewReader(body),
-		)
-
-		request.GetBody = func() (io.ReadCloser, error) {
-			return io.NopCloser(
-				bytes.NewReader(body),
-			), nil
-		}
-
-		return request, nil
-	}
+	return PrototypeReader(prototype, bytes.NewReader(body))
 }
 
 // PrototypeReader clones a given request and produces a distinct Body and
 // GetBody for each task attempt.
 //
-// This function is a bit more efficient than PrototypeBytes, as it will reuse
-// the same body by seeking to the beginning before each task attempt.  The associated
-// GetBody function will also reuse the body by seeking in the same manner.
+// This function will reuse the same body by seeking to the begining before
+// each task attempt.  The associated GetBody function will also reuse the body
+// by seeking in the same manner.
 func PrototypeReader(prototype *http.Request, body io.ReadSeeker) RequestFactory {
 	return func(ctx context.Context) (*http.Request, error) {
 		request := prototype.Clone(ctx)
