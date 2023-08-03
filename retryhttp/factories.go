@@ -24,7 +24,7 @@ func PrototypeBytes(prototype *http.Request, body []byte) RequestFactory {
 // PrototypeReader clones a given request and produces a distinct Body and
 // GetBody for each task attempt.
 //
-// This function will reuse the same body by seeking to the begining before
+// This function will reuse the same body by seeking to the beginning before
 // each task attempt.  The associated GetBody function will also reuse the body
 // by seeking in the same manner.
 func PrototypeReader(prototype *http.Request, body io.ReadSeeker) RequestFactory {
