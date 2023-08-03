@@ -20,15 +20,15 @@ func ExampleTask_DoCtx() {
 	}
 
 	task := Task[bool]{
+		Factory: func(ctx context.Context) (*http.Request, error) {
+			fmt.Println("creating request")
+			return http.NewRequestWithContext(ctx, "GET", "/", nil)
+		},
 		Client: func(*http.Request) (*http.Response, error) {
 			fmt.Println("executing HTTP transaction")
 			return &http.Response{
 				StatusCode: 200,
 			}, nil
-		},
-		Factory: func(ctx context.Context) (*http.Request, error) {
-			fmt.Println("creating request")
-			return http.NewRequestWithContext(ctx, "GET", "/", nil)
 		},
 		Converter: func(ctx context.Context, response *http.Response) (bool, error) {
 			fmt.Println("converting response")
