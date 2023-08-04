@@ -6,11 +6,6 @@ import (
 	"net/http"
 )
 
-// RequestFactory is a closure responsible for creating a request for each task attempt.
-// This closure should always incorporate the context into the request, using something
-// like http.NewRequestWithContext or cloning a request with http.Request.Clone.
-type RequestFactory func(context.Context) (*http.Request, error)
-
 // Client is a function that can execute an HTTP transaction.
 // http.Client.Do and http.RoundTripper.RoundTrip work for this.
 type Client func(*http.Request) (*http.Response, error)
