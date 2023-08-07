@@ -35,18 +35,18 @@ type RequestFactory func(context.Context) (*http.Request, error)
 //
 // If there was an error creating the request, the returned factory will return that
 // error and mark it as not retryable.
-func NewRequest(method, url string, body TaskBody, header http.Header) RequestFactory {
-	prototype, err := http.NewRequest(method, url, body)
+func NewRequest(method, url string, body TaskBody, h http.Header) RequestFactory {
+	// we take over body/getBody, so just pass nil as the body
+	prototype, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		return func(context.Context) (*http.Request, error) {
 			return nil, retry.SetRetryable(err, false)
 		}
 	}
 
-	// http.NewRequest makes sure the Header field is not nil, so don't
-	// clobber that.
-	if header != nil {
-		prototype.Header = header
+	// avoid clobbering the empty header set by http.NewRequest
+	if len(h) > 0 {
+		prototype.Header = h
 	}
 
 	return PrototypeReader(prototype, body)
@@ -71,11 +71,20 @@ func PrototypeBytes(prototype *http.Request, body []byte) RequestFactory {
 // GetBody for each task attempt.  The body may be nil.
 func PrototypeReader(prototype *http.Request, b TaskBody) RequestFactory {
 	var (
-		body    io.ReadSeekCloser
-		getBody func() (io.ReadCloser, error)
+		contentLength int64
+		body          io.ReadSeekCloser
+		getBody       func() (io.ReadCloser, error)
 	)
 
 	if b != nil {
+		type lengther interface {
+			Len() int
+		}
+
+		if l, ok := b.(lengther); ok {
+			contentLength = int64(l.Len())
+		}
+
 		body = taskBodyCloser{
 			TaskBody: b,
 		}
@@ -97,6 +106,7 @@ func PrototypeReader(prototype *http.Request, b TaskBody) RequestFactory {
 
 		if err == nil {
 			request = prototype.Clone(ctx)
+			request.ContentLength = contentLength
 			request.Body = body
 			request.GetBody = getBody
 		}
