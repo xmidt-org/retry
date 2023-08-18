@@ -1,6 +1,7 @@
 package retry
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -13,15 +14,25 @@ type PolicySuite struct {
 
 func (suite *PolicySuite) TestPolicyFactoryFunc() {
 	var (
-		expected = &constant{
-			interval: 16 * time.Second,
-		}
+		expectedInterval = 5 * time.Second
 
-		pf     PolicyFactory = PolicyFactoryFunc(func() Policy { return expected })
-		actual               = pf.NewPolicy()
+		pf PolicyFactory = PolicyFactoryFunc(func(ctx context.Context) Policy {
+			return &constant{
+				corePolicy: corePolicy{
+					ctx: ctx,
+					// leave cancel nil, as we don't need it for this test
+				},
+				interval: expectedInterval,
+			}
+		})
+
+		testCtx, _ = suite.testCtx()
+		actual     = pf.NewPolicy(testCtx)
 	)
 
-	suite.Same(expected, actual)
+	suite.IsType((*constant)(nil), actual)
+	suite.Same(testCtx, actual.(*constant).ctx)
+	suite.Equal(expectedInterval, actual.(*constant).interval)
 }
 
 func TestPolicy(t *testing.T) {

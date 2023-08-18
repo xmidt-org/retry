@@ -31,16 +31,16 @@ func (m *mockShouldRetry) Expect(err error, result bool) *mock.Call {
 	return m.On("ShouldRetry", err).Return(result)
 }
 
-type mockOnFail struct {
+type mockOnAttempt struct {
 	mock.Mock
 }
 
-func (m *mockOnFail) OnFail(err error, d time.Duration) {
-	m.Called(err, d)
+func (m *mockOnAttempt) OnAttempt(a Attempt) {
+	m.Called(a)
 }
 
-func (m *mockOnFail) Expect(err error, d time.Duration) *mock.Call {
-	return m.On("OnFail", err, d)
+func (m *mockOnAttempt) Expect(a Attempt) *mock.Call {
+	return m.On("OnAttempt", a)
 }
 
 type mockTask struct {

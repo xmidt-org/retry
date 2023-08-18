@@ -45,13 +45,13 @@ func (suite *TaskSuite) testDoCtxFactoryError() {
 		}
 	)
 
-	r, err := retry.NewRunnerWithData[int]()
+	r, err := retry.NewRunner[int]()
 	suite.Require().NoError(err)
 	suite.Require().NotNil(r)
 
 	factory.ExpectNew(expectedCtx, expectedRequest, expectedErr)
 
-	actual, actualErr := r.RunCtx(expectedCtx, task.DoCtx)
+	actual, actualErr := r.Run(expectedCtx, task.DoCtx)
 	suite.Zero(actual)
 	suite.Same(expectedErr, actualErr)
 
@@ -77,14 +77,14 @@ func (suite *TaskSuite) testDoCtxClientError() {
 		}
 	)
 
-	r, err := retry.NewRunnerWithData[int]()
+	r, err := retry.NewRunner[int]()
 	suite.Require().NoError(err)
 	suite.Require().NotNil(r)
 
 	factory.ExpectNew(expectedCtx, expectedRequest, nil)
 	client.ExpectDo(expectedRequest, nil, expectedErr)
 
-	actual, actualErr := r.RunCtx(expectedCtx, task.DoCtx)
+	actual, actualErr := r.Run(expectedCtx, task.DoCtx)
 	suite.Zero(actual)
 	suite.Same(expectedErr, actualErr)
 
@@ -114,7 +114,7 @@ func (suite *TaskSuite) testDoCtxConverterError() {
 		}
 	)
 
-	r, err := retry.NewRunnerWithData[int]()
+	r, err := retry.NewRunner[int]()
 	suite.Require().NoError(err)
 	suite.Require().NotNil(r)
 
@@ -122,7 +122,7 @@ func (suite *TaskSuite) testDoCtxConverterError() {
 	client.ExpectDo(expectedRequest, expectedResponse, nil)
 	converter.ExpectConvert(expectedCtx, expectedResponse, 0, expectedErr)
 
-	actual, actualErr := r.RunCtx(expectedCtx, task.DoCtx)
+	actual, actualErr := r.Run(expectedCtx, task.DoCtx)
 	suite.Zero(actual)
 	suite.Same(expectedErr, actualErr)
 
@@ -151,7 +151,7 @@ func (suite *TaskSuite) testDoCtxSuccess() {
 		}
 	)
 
-	r, err := retry.NewRunnerWithData[int]()
+	r, err := retry.NewRunner[int]()
 	suite.Require().NoError(err)
 	suite.Require().NotNil(r)
 
@@ -159,7 +159,7 @@ func (suite *TaskSuite) testDoCtxSuccess() {
 	client.ExpectDo(expectedRequest, expectedResponse, nil)
 	converter.ExpectConvert(expectedCtx, expectedResponse, 123, nil)
 
-	actual, actualErr := r.RunCtx(expectedCtx, task.DoCtx)
+	actual, actualErr := r.Run(expectedCtx, task.DoCtx)
 	suite.Equal(123, actual)
 	suite.NoError(actualErr)
 

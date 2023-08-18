@@ -11,9 +11,24 @@ type NeverSuite struct {
 	CommonSuite
 }
 
-func (suite *NeverSuite) TestNext() {
+func (suite *NeverSuite) TestCancel() {
+	ctx, _ := suite.testCtx()
 	p := suite.requirePolicy(
-		Config{}.NewPolicy(),
+		Config{}.NewPolicy(ctx),
+	)
+
+	p.Cancel()
+	suite.assertStopped(p.Next())
+
+	// idempotent
+	p.Cancel()
+	suite.assertStopped(p.Next())
+}
+
+func (suite *NeverSuite) TestNext() {
+	ctx, _ := suite.testCtx()
+	p := suite.requirePolicy(
+		Config{}.NewPolicy(ctx),
 	)
 
 	suite.assertStopped(p.Next())

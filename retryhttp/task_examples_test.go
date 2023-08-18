@@ -9,7 +9,7 @@ import (
 )
 
 func ExampleTask_DoCtx() {
-	r, err := retry.NewRunnerWithData[bool](
+	r, err := retry.NewRunner[bool](
 		retry.WithPolicyFactory(retry.Config{
 			// desired configuration ...
 		}),
@@ -38,7 +38,7 @@ func ExampleTask_DoCtx() {
 		},
 	}
 
-	result, taskErr := r.RunCtx(context.Background(), task.DoCtx)
+	result, taskErr := r.Run(context.Background(), task.DoCtx)
 	if taskErr != nil {
 		panic(taskErr)
 	}

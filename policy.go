@@ -1,6 +1,7 @@
 package retry
 
 import (
+	"context"
 	"time"
 )
 
@@ -9,17 +10,26 @@ import (
 // unmarshaled from an external source.
 type PolicyFactory interface {
 	// NewPolicy creates the retry Policy this factory is configured to make.
-	NewPolicy() Policy
+	// This method should incorporate the context into the returned Policy.
+	// Typically, this will mean a child context with a cancelation function.
+	NewPolicy(context.Context) Policy
 }
 
 // PolicyFactoryFunc is a function type that implements PolicyFactory.
-type PolicyFactoryFunc func() Policy
+type PolicyFactoryFunc func(context.Context) Policy
 
-func (pff PolicyFactoryFunc) NewPolicy() Policy { return pff() }
+func (pff PolicyFactoryFunc) NewPolicy(ctx context.Context) Policy { return pff(ctx) }
 
 // Policy is a retry algorithm.  Policies are not safe for concurrent use.
 // A Policy should be created each time an operation is to be executed.
 type Policy interface {
+	// Context returns the context associated with this policy.  This method never returns nil.
+	Context() context.Context
+
+	// Cancel halts all future retries and cleans up resources associated with this policy.
+	// This method is idempotent.  After it is called the first time, Next always returns (0, false).
+	Cancel()
+
 	// Next obtains the retry interval to use next.  Typically, a caller will
 	// sleep for the returned duration before trying the operation again.
 	//
@@ -35,14 +45,24 @@ type Policy interface {
 // corePolicy implements the common functionality for policies other than those
 // that never retry.
 type corePolicy struct {
-	maxRetries     int
-	maxElapsedTime time.Duration
-	now            func() time.Time
-	start          time.Time
-	retryCount     int
+	ctx        context.Context
+	cancel     context.CancelFunc
+	maxRetries int
+	retryCount int
 }
 
-// withinLimits verifies that the limits of the policy, i.e. maxRetries and maxElapsedTime,
+func (cp corePolicy) Context() context.Context {
+	return cp.ctx
+}
+
+func (cp corePolicy) Cancel() {
+	if cp.cancel != nil {
+		cp.cancel()
+		cp.cancel = nil
+	}
+}
+
+// withinLimits verifies that the limits of the policy, i.e. maxRetries and any context deadline,
 // haven't been exceeded.  This method returns true if the policy's limits have not been
 // exceeded, and false if either the limit on retries or time has been reached.
 func (cp corePolicy) withinLimits() bool {
@@ -50,7 +70,7 @@ func (cp corePolicy) withinLimits() bool {
 	case cp.maxRetries > 0 && cp.retryCount >= cp.maxRetries:
 		return false
 
-	case cp.maxElapsedTime > 0 && cp.now().Sub(cp.start) >= cp.maxElapsedTime:
+	case cp.ctx.Err() != nil:
 		return false
 
 	default:

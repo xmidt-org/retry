@@ -1,15 +1,29 @@
 package retry
 
 import (
+	"context"
 	"time"
 
 	"github.com/stretchr/testify/suite"
 )
 
+type contextKey struct{}
+
 // CommonSuite has a few utilities that are commonly useful for
 // policy unit tests in this package.
 type CommonSuite struct {
 	suite.Suite
+}
+
+func (suite *CommonSuite) testCtx() (context.Context, context.CancelFunc) {
+	return context.WithCancel(
+		context.WithValue(context.Background(), contextKey{}, "test"),
+	)
+}
+
+func (suite *CommonSuite) assertTestCtx(ctx context.Context) {
+	suite.Require().NotNil(ctx)
+	suite.Equal("test", ctx.Value(contextKey{}))
 }
 
 // requirePolicy halts the current test if p is nil.  The given Policy
