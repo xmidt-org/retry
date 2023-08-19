@@ -15,6 +15,10 @@ import (
 // The request factories provided by this package ensure that a TaskBody is not
 // closed by the HTTP client after each attempt.  Calling code must ensure that
 // any body that is used across retries is closed if that is necessary.
+//
+// NOTE: bytes.Buffer does not implement this interface, but bytes.Reader does.
+// Since the request body should be read-only across task attempts, bytes.Reader
+// is preferred.
 type TaskBody io.ReadSeeker
 
 // taskBodyCloser wraps an io.ReadSeeker and ensures that, regardless of whether
