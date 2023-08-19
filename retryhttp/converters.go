@@ -7,6 +7,13 @@ import (
 	"net/http"
 )
 
+// Converter converts an *http.Response into an arbitrary value. This closure is
+// invoked for all non-nil responses, including non-2xx responses.  That allows
+// the implementation to convert non-2xx responses into errors.
+//
+// Note: the original request is available via http.Response.Request.
+type Converter[V any] func(context.Context, *http.Response) (V, error)
+
 // BoolConverter is a Converter[bool] that returns true if the response is a success,
 // false otherwise.
 //

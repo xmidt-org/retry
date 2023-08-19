@@ -2,28 +2,8 @@ package retryhttp
 
 import (
 	"context"
-	"io"
 	"net/http"
 )
-
-// Client is a function that can execute an HTTP transaction.
-// http.Client.Do and http.RoundTripper.RoundTrip work for this.
-type Client func(*http.Request) (*http.Response, error)
-
-// Converter converts an *http.Response into an arbitrary value. This closure is
-// invoked for all non-nil responses, including non-2xx responses.  That allows
-// the implementation to convert non-2xx responses into errors.
-//
-// Note: the original request is available via http.Response.Request.
-type Converter[V any] func(context.Context, *http.Response) (V, error)
-
-// cleanup handles draining and closing a client HTTP response.
-func cleanup(response *http.Response) {
-	if response != nil && response.Body != nil {
-		io.Copy(io.Discard, response.Body)
-		response.Body.Close()
-	}
-}
 
 // Task represents an HTTP client task.
 type Task[V any] struct {
