@@ -17,12 +17,16 @@ func (suite *NeverSuite) TestCancel() {
 		Config{}.NewPolicy(ctx),
 	)
 
+	suite.Require().NotNil(p.Context())
+
 	p.Cancel()
 	suite.assertStopped(p.Next())
+	suite.NotNil(p.Context().Err())
 
 	// idempotent
 	p.Cancel()
 	suite.assertStopped(p.Next())
+	suite.NotNil(p.Context().Err())
 }
 
 func (suite *NeverSuite) TestNext() {

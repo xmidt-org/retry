@@ -33,7 +33,7 @@ type Attempt struct {
 // A successful task attempt also returns true from this method, as there will
 // be no more attempts.
 func (a Attempt) Done() bool {
-	return a.Next <= 0 && a.Context.Err() == nil
+	return a.Next <= 0 || a.Context.Err() != nil
 }
 
 // OnAttempt is an optional task callback that is invoked after each attempt
