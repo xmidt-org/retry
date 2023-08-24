@@ -17,7 +17,7 @@ type RunnableTask[V any] interface {
 // AsTask normalizes any RunnableTask into a Task so that it can be submitted
 // to a Runner.
 func AsTask[V any, RT RunnableTask[V]](rt RT) Task[V] {
-	if t, ok := any(rt).(Task[V]); ok {
+	if t, ok := any(rt).(func(context.Context) (V, error)); ok {
 		return t
 	}
 
