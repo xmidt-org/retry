@@ -21,9 +21,18 @@ func (suite *CommonSuite) testCtx() (context.Context, context.CancelFunc) {
 	)
 }
 
-func (suite *CommonSuite) assertTestCtx(ctx context.Context) {
+func (suite *CommonSuite) assertTestCtx(ctx context.Context) bool {
 	suite.Require().NotNil(ctx)
-	suite.Equal("test", ctx.Value(contextKey{}))
+	return suite.Equal("test", ctx.Value(contextKey{}))
+}
+
+// assertTestAttempt asserts that the expected attempt matches the actual *except*
+// as regards the context.  The actual.Context field is passed to assertTextCtx.
+func (suite *CommonSuite) assertTestAttempt(expected, actual Attempt) bool {
+	return suite.assertTestCtx(actual.Context) ||
+		suite.Equal(expected.Err, actual.Err) ||
+		suite.Equal(expected.Retries, actual.Retries) ||
+		suite.Equal(expected.Next, actual.Next)
 }
 
 // requirePolicy halts the current test if p is nil.  The given Policy
@@ -68,4 +77,11 @@ func (suite *CommonSuite) assertContinue(d time.Duration, ok bool) time.Duration
 func (suite *CommonSuite) assertStopped(d time.Duration, ok bool) {
 	suite.Zero(d)
 	suite.False(ok)
+}
+
+func (suite *CommonSuite) newRunner(o ...RunnerOption) Runner[int] {
+	runner, err := NewRunner[int](o...)
+	suite.Require().NoError(err)
+	suite.Require().NotNil(runner)
+	return runner
 }

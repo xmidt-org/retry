@@ -43,6 +43,10 @@ func (m *mockOnAttempt) Expect(a Attempt) *mock.Call {
 	return m.On("OnAttempt", a)
 }
 
+func (m *mockOnAttempt) ExpectMatch(mf func(Attempt) bool) *mock.Call {
+	return m.On("OnAttempt", mock.MatchedBy(mf))
+}
+
 type mockTask struct {
 	mock.Mock
 }

@@ -6,6 +6,8 @@ import (
 )
 
 // never is the Policy that indicates retries should never be performed.
+// This type still carries a context, so that the Policy interface can still
+// be used to cancel the context for the single attempt.
 type never struct {
 	ctx    context.Context
 	cancel context.CancelFunc
