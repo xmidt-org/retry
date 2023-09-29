@@ -1,6 +1,7 @@
 package retry
 
 import (
+	"context"
 	"math/rand"
 	"time"
 )
@@ -48,18 +49,29 @@ type Config struct {
 	MaxInterval time.Duration `json:"maxInterval" yaml:"maxInterval"`
 }
 
+func (c Config) newPolicyCtx(parentCtx context.Context) (context.Context, context.CancelFunc) {
+	if c.MaxElapsedTime > 0 {
+		return context.WithTimeout(parentCtx, c.MaxElapsedTime)
+	}
+
+	return context.WithCancel(parentCtx)
+}
+
 // NewPolicy implements PolicyFactory and uses this configuration to create the type
 // of retry policy indicated by the Interval, Jitter, and Multiplier fields.
-func (c Config) NewPolicy() Policy {
+func (c Config) NewPolicy(parentCtx context.Context) Policy {
+	ctx, cancel := c.newPolicyCtx(parentCtx)
 	if c.Interval <= 0 {
-		return never{}
+		return never{
+			ctx:    ctx,
+			cancel: cancel,
+		}
 	}
 
 	cp := corePolicy{
-		maxRetries:     c.MaxRetries,
-		maxElapsedTime: c.MaxElapsedTime,
-		now:            time.Now,
-		start:          time.Now(),
+		ctx:        ctx,
+		cancel:     cancel,
+		maxRetries: c.MaxRetries,
 	}
 
 	if c.Jitter <= 0.0 && c.Multiplier <= 1.0 {

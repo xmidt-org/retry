@@ -5,43 +5,73 @@ import (
 	"time"
 )
 
+// defaultTimer is the strategy used to create a timer using the stdlib.
+func defaultTimer(d time.Duration) (<-chan time.Time, func() bool) {
+	t := time.NewTimer(d)
+	return t.C, t.Stop
+}
+
 // coreRunner implements the common functionality for Runner implementations.
+// This type is necessary in part so that options don't have to be generics.
 type coreRunner struct {
 	factory     PolicyFactory
 	shouldRetry func(error) bool
-	onFail      func(error, time.Duration)
-
-	sleep func(time.Duration)
+	onAttempts  []OnAttempt
+	timer       func(time.Duration) (<-chan time.Time, func() bool)
 }
 
 // newPolicy creates the retry policy described by these Options.
 // If no PolicyFactory is set, this method returns never{}.
-func (cr coreRunner) newPolicy() Policy {
+func (cr coreRunner) newPolicy(ctx context.Context) Policy {
 	if cr.factory == nil {
-		return never{}
+		taskCtx, cancel := context.WithCancel(ctx)
+		return never{
+			ctx:    taskCtx,
+			cancel: cancel,
+		}
 	}
 
-	return cr.factory.NewPolicy()
+	return cr.factory.NewPolicy(ctx)
 }
 
-// handleTaskError examines the error returned by a task to determine
-// whether retries should continue.  This method is also passed the duration
-// of the previous retry (zero for the first time), and will dispatch
-// to any configured OnFail closure as appropriate.
-func (cr coreRunner) handleTaskError(err error, d time.Duration) (shouldRetry bool) {
-	if err != nil && cr.onFail != nil {
-		cr.onFail(err, d)
+// handleAttempt deals with the aftermath of a task attempt, whether success or fail.
+// If onAttempt is set, it is invoked with an Attempt.  If the policy and the error
+// allow retries to continue, then interval will be positive and shouldRetry will be true.
+func (cr coreRunner) handleAttempt(p Policy, retries int, err error) (interval time.Duration, shouldRetry bool) {
+	a := Attempt{
+		Context: p.Context(),
+		Err:     err,
+		Retries: retries,
 	}
 
 	shouldRetry = ShouldRetry(err, cr.shouldRetry)
+
+	// slight optimization: if the error indicated no further retries, then there's no
+	// reason to consult the policy
+	if shouldRetry {
+		interval, shouldRetry = p.Next()
+		a.Next = interval
+	}
+
+	for _, f := range cr.onAttempts {
+		f(a)
+	}
+
 	return
 }
 
-// doSleep handles advancing to the next interval and sleeping as appropriate.
-func (cr coreRunner) doSleep(p Policy) (next time.Duration, ok bool) {
-	next, ok = p.Next()
-	if ok {
-		cr.sleep(next)
+// awaitRetry waits out the interval before returning.  If taskCtx is canceled while waiting,
+// this method returns taskCtx.Err().  Otherwise, this method return nil and the next retry
+// may continue.
+func (cr coreRunner) awaitRetry(taskCtx context.Context, interval time.Duration) (err error) {
+	ch, stop := cr.timer(interval)
+	select {
+	case <-taskCtx.Done():
+		err = taskCtx.Err()
+		stop()
+
+	case <-ch:
+		// time for the next retry
 	}
 
 	return
@@ -53,7 +83,7 @@ type RunnerOption func(*coreRunner) error
 // WithPolicyFactory returns a RunnerOption that assigns the given PolicyFactory
 // to the created task runner.
 //
-// Note: Config in this package implements PolicyFactory.
+// Config in this package implements PolicyFactory.
 func WithPolicyFactory(pf PolicyFactory) RunnerOption {
 	return func(cr *coreRunner) error {
 		cr.factory = pf
@@ -72,166 +102,58 @@ func WithShouldRetry(sr func(error) bool) RunnerOption {
 	}
 }
 
-// WithOnFail adds a callback to the created task runner that will be invoked
-// every time a task attempt fails, including the first attempt (before any retries).
-//
-// On the first attempt, the duration will be zero (0).  For each retry, the duration
-// will be the interval of the retry just attempted.
-func WithOnFail(of func(error, time.Duration)) RunnerOption {
+// WithOnAttempt appends one or more callbacks for task results.  This option
+// can be applied repeatedly, and the set of OnAttempt callbacks is cumulative.
+func WithOnAttempt(fns ...OnAttempt) RunnerOption {
 	return func(cr *coreRunner) error {
-		cr.onFail = of
+		cr.onAttempts = append(cr.onAttempts, fns...)
 		return nil
 	}
 }
 
-// Runner is a task executor that honors retry semantics.
-type Runner interface {
+// Runner is a task executor that honors retry semantics.  A Runner is associated
+// with a PolicyFactory, a ShouldRetry strategy, and one or more OnAttempt callbacks.
+type Runner[V any] interface {
 	// Run executes a task at least once, retrying failures according to
 	// the configured PolicyFactory.
-	Run(func() error) error
-
-	// RunCtx executes a task at least once, retrying failures according to
-	// the configured PolicyFactory.
 	//
-	// This variant honors context cancelation semantics.
-	RunCtx(context.Context, func(context.Context) error) error
+	// The context passed to this method must never be nil.  Use context.Background()
+	// or context.TODO() as appropriate rather than nil.
+	//
+	// The configured PolicyFactory may impose a time limit, e.g. the Config.MaxElapsedTime
+	// field.  In this case, if the time limit is reached, task attempts will halt regardless
+	// of the state of the parent context.
+	Run(context.Context, Task[V]) (V, error)
 }
 
-type runner struct {
+type runner[V any] struct {
 	coreRunner
 }
 
-func (r *runner) Run(task func() error) (err error) {
-	var (
-		p          = r.newPolicy()
-		interval   time.Duration
-		keepTrying = true
-	)
-
-	for keepTrying {
-		err = task()
-		if !r.handleTaskError(err, interval) {
+func (r *runner[V]) Run(parentCtx context.Context, task Task[V]) (result V, err error) {
+	p := r.newPolicy(parentCtx)
+	defer p.Cancel()
+	for taskCtx, retries := p.Context(), 0; taskCtx.Err() == nil; retries++ {
+		result, err = task(taskCtx)
+		interval, keepTrying := r.handleAttempt(p, retries, err)
+		if !keepTrying {
 			break
 		}
 
-		interval, keepTrying = r.doSleep(p)
-	}
-
-	return
-}
-
-func (r *runner) RunCtx(ctx context.Context, task func(context.Context) error) (err error) {
-	var (
-		p          = r.newPolicy()
-		interval   time.Duration
-		keepTrying = true
-	)
-
-	for keepTrying && ctx.Err() == nil {
-		err = task(ctx)
-		if !r.handleTaskError(err, interval) {
-			break
-		} else if ctx.Err() != nil {
-			// cancelation takes precedence over task errors
-			err = ctx.Err()
+		err = r.awaitRetry(taskCtx, interval)
+		if err != nil {
 			break
 		}
-
-		interval, keepTrying = r.doSleep(p)
 	}
 
 	return
 }
 
 // NewRunner creates a Runner using the supplied set of options.
-func NewRunner(opts ...RunnerOption) (Runner, error) {
-	r := &runner{
+func NewRunner[V any](opts ...RunnerOption) (Runner[V], error) {
+	r := &runner[V]{
 		coreRunner: coreRunner{
-			sleep: time.Sleep,
-		},
-	}
-
-	for _, o := range opts {
-		if err := o(&r.coreRunner); err != nil {
-			return nil, err
-		}
-	}
-
-	return r, nil
-}
-
-// RunnerWithData is a Runner variant that allows tasks to return an
-// arbitrary data type.
-type RunnerWithData[V any] interface {
-	// Run executes a task at least once, retrying failures according to
-	// the configured PolicyFactory.
-	//
-	// The returned type V is the either (1) the successful return of the
-	// task, or (2) the zero value of V if all attempts failed.
-	Run(func() (V, error)) (V, error)
-
-	// RunCtx executes a task at least once, retrying failures according to
-	// the configured PolicyFactory.
-	//
-	// The returned type V is the either (1) the successful return of the
-	// task, or (2) the zero value of V if all attempts failed.
-	//
-	// This variant honors context cancelation semantics.
-	RunCtx(context.Context, func(context.Context) (V, error)) (V, error)
-}
-
-type runnerWithData[V any] struct {
-	coreRunner
-}
-
-func (r *runnerWithData[V]) Run(task func() (V, error)) (result V, err error) {
-	var (
-		p          = r.newPolicy()
-		interval   time.Duration
-		keepTrying = true
-	)
-
-	for keepTrying {
-		result, err = task()
-		if !r.handleTaskError(err, interval) {
-			break
-		}
-
-		interval, keepTrying = r.doSleep(p)
-	}
-
-	return
-}
-
-func (r *runnerWithData[V]) RunCtx(ctx context.Context, task func(context.Context) (V, error)) (result V, err error) {
-	var (
-		p          = r.newPolicy()
-		interval   time.Duration
-		keepTrying = true
-	)
-
-	for keepTrying && ctx.Err() == nil {
-		result, err = task(ctx)
-		if !r.handleTaskError(err, interval) {
-			break
-		} else if ctx.Err() != nil {
-			// cancelation takes precedence over task errors
-			err = ctx.Err()
-			break
-		}
-
-		interval, keepTrying = r.doSleep(p)
-	}
-
-	return
-}
-
-// NewRunnerWithData creates a RunnerWithData using the supplied set of options.  All tasks
-// executed by the returned runner must return a value of type V in addition to an error.
-func NewRunnerWithData[V any](opts ...RunnerOption) (RunnerWithData[V], error) {
-	r := &runnerWithData[V]{
-		coreRunner: coreRunner{
-			sleep: time.Sleep,
+			timer: defaultTimer,
 		},
 	}
 

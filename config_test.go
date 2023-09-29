@@ -14,33 +14,45 @@ type ConfigSuite struct {
 }
 
 func (suite *ConfigSuite) TestDefault() {
-	suite.requireNever(
+	testCtx, _ := suite.testCtx()
+	p := suite.requireNever(
 		suite.requirePolicy(
-			Config{}.NewPolicy(),
+			Config{}.NewPolicy(testCtx),
 		),
 	)
+
+	suite.NotNil(p.ctx)
+	suite.NotNil(p.cancel)
 }
 
 func (suite *ConfigSuite) TestConstant() {
-	c := suite.requireConstant(
+	testCtx, _ := suite.testCtx()
+	p := suite.requireConstant(
 		suite.requirePolicy(
 			Config{
 				MaxRetries:     5,
 				MaxElapsedTime: 5 * time.Hour,
 				Interval:       27 * time.Second,
-			}.NewPolicy(),
+			}.NewPolicy(testCtx),
 		),
 	)
 
-	suite.Equal(5, c.maxRetries)
-	suite.Equal(5*time.Hour, c.maxElapsedTime)
-	suite.Equal(27*time.Second, c.interval)
-	suite.NotNil(c.now)
-	suite.GreaterOrEqual(time.Now(), c.start)
+	suite.NotNil(p.ctx)
+	suite.NotNil(p.cancel)
+	suite.Equal(5, p.maxRetries)
+	suite.Equal(27*time.Second, p.interval)
+
+	deadline, ok := p.ctx.Deadline()
+	suite.Require().True(ok)
+	suite.GreaterOrEqual(
+		time.Now().Add(5*time.Hour),
+		deadline,
+	)
 }
 
 func (suite *ConfigSuite) TestExponential() {
-	e := suite.requireExponential(
+	testCtx, _ := suite.testCtx()
+	p := suite.requireExponential(
 		suite.requirePolicy(
 			Config{
 				MaxRetries:     5,
@@ -49,19 +61,23 @@ func (suite *ConfigSuite) TestExponential() {
 				Jitter:         0.1,
 				Multiplier:     2.0,
 				MaxInterval:    15 * time.Hour,
-			}.NewPolicy(),
+			}.NewPolicy(testCtx),
 		),
 	)
 
-	suite.Equal(5, e.maxRetries)
-	suite.Equal(5*time.Hour, e.maxElapsedTime)
-	suite.Equal(6*time.Second, e.initial)
-	suite.Zero(e.previous)
-	suite.Equal(0.1, e.jitter)
-	suite.Equal(2.0, e.multiplier)
-	suite.Equal(15*time.Hour, e.maxInterval)
-	suite.NotNil(e.now)
-	suite.GreaterOrEqual(time.Now(), e.start)
+	suite.Equal(5, p.maxRetries)
+	suite.Equal(6*time.Second, p.initial)
+	suite.Zero(p.previous)
+	suite.Equal(0.1, p.jitter)
+	suite.Equal(2.0, p.multiplier)
+	suite.Equal(15*time.Hour, p.maxInterval)
+
+	deadline, ok := p.ctx.Deadline()
+	suite.Require().True(ok)
+	suite.GreaterOrEqual(
+		time.Now().Add(5*time.Hour),
+		deadline,
+	)
 }
 
 func TestConfig(t *testing.T) {
