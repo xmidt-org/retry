@@ -7,16 +7,45 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type mockSleep struct {
+type mockTimer struct {
 	mock.Mock
 }
 
-func (m *mockSleep) Sleep(d time.Duration) {
-	m.Called(d)
+func (m *mockTimer) Timer(d time.Duration) (<-chan time.Time, func() bool) {
+	args := m.Called(d)
+	ch, _ := args.Get(0).(<-chan time.Time)
+	stop, _ := args.Get(1).(func() bool)
+	return ch, stop
 }
 
-func (m *mockSleep) Expect(d time.Duration) *mock.Call {
-	return m.On("Sleep", d)
+func (m *mockTimer) Stop() bool {
+	return m.Called().Bool(0)
+}
+
+func (m *mockTimer) ExpectStop(result bool) *mock.Call {
+	return m.On("Stop").Return(result)
+}
+
+// ExpectTimer sets up a Timer expectation using Stop as the stop function.
+func (m *mockTimer) ExpectTimer(d time.Duration, ch <-chan time.Time) *mock.Call {
+	return m.On("Timer", d).Return(ch, m.Stop)
+}
+
+// ExpectConstant sets up a Timer expectation, using Stop as the stop function.
+// A timer channel is used that has the supplied number of time objects already
+// on the channel.
+func (m *mockTimer) ExpectConstant(d time.Duration, times int) *mock.Call {
+	var (
+		current = time.Now()
+		ch      = make(chan time.Time, times)
+	)
+
+	for i := 0; i < times; i++ {
+		ch <- current
+		current = current.Add(d)
+	}
+
+	return m.ExpectTimer(d, ch)
 }
 
 type mockShouldRetry struct {
@@ -47,44 +76,19 @@ func (m *mockOnAttempt) ExpectMatch(mf func(Attempt) bool) *mock.Call {
 	return m.On("OnAttempt", mock.MatchedBy(mf))
 }
 
-type mockTask struct {
+type mockTask[V any] struct {
 	mock.Mock
 }
 
-func (m *mockTask) Do() error {
-	return m.Called().Error(0)
-}
-
-func (m *mockTask) Expect(err error) *mock.Call {
-	return m.On("Do").Return(err)
-}
-
-func (m *mockTask) DoCtx(ctx context.Context) error {
-	return m.Called(ctx).Error(0)
-}
-
-func (m *mockTask) ExpectCtx(ctx context.Context, err error) *mock.Call {
-	return m.On("DoCtx", ctx).Return(err)
-}
-
-type mockTaskWithData[V any] struct {
-	mock.Mock
-}
-
-func (m *mockTaskWithData[V]) Do() (V, error) {
-	args := m.Called()
-	return args.Get(0).(V), args.Error(1)
-}
-
-func (m *mockTaskWithData[V]) Expect(result V, err error) *mock.Call {
-	return m.On("Do").Return(result, err)
-}
-
-func (m *mockTaskWithData[V]) DoCtx(ctx context.Context) (V, error) {
+func (m *mockTask[V]) Do(ctx context.Context) (V, error) {
 	args := m.Called(ctx)
 	return args.Get(0).(V), args.Error(1)
 }
 
-func (m *mockTaskWithData[V]) ExpectCtx(ctx context.Context, result V, err error) *mock.Call {
-	return m.On("DoCtx", ctx).Return(result, err)
+func (m *mockTask[V]) Expect(ctx context.Context, result V, err error) *mock.Call {
+	return m.On("Do", ctx).Return(result, err)
+}
+
+func (m *mockTask[V]) ExpectMatch(mf func(context.Context) bool, result V, err error) *mock.Call {
+	return m.On("Do", mock.MatchedBy(mf)).Return(result, err)
 }

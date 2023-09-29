@@ -35,6 +35,14 @@ func (suite *CommonSuite) assertTestAttempt(expected, actual Attempt) bool {
 		suite.Equal(expected.Next, actual.Next)
 }
 
+// newTestAttemptMatcher returns a mock MatchedBy function that matches the given
+// Attempt, assuming the context will be created by suite.testCtx.
+func (suite *CommonSuite) newTestAttemptMatcher(expected Attempt) func(Attempt) bool {
+	return func(actual Attempt) bool {
+		return suite.assertTestAttempt(expected, actual)
+	}
+}
+
 // requirePolicy halts the current test if p is nil.  The given Policy
 // is returned for further testing.
 func (suite *CommonSuite) requirePolicy(p Policy) Policy {
@@ -84,4 +92,8 @@ func (suite *CommonSuite) newRunner(o ...RunnerOption) Runner[int] {
 	suite.Require().NoError(err)
 	suite.Require().NotNil(runner)
 	return runner
+}
+
+func (suite *CommonSuite) setTimer(r Runner[int], timer func(time.Duration) (<-chan time.Time, func() bool)) {
+	r.(*runner[int]).coreRunner.timer = timer
 }
