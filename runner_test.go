@@ -23,7 +23,7 @@ func (suite *RunnerSuite) testRunNoRetries() {
 
 		onAttempt = new(mockOnAttempt)
 		runner    = suite.newRunner(
-			WithOnAttempt(onAttempt.OnAttempt),
+			WithOnAttempt[int](onAttempt.OnAttempt),
 		)
 	)
 
@@ -50,11 +50,11 @@ func (suite *RunnerSuite) testRunWithRetriesUntilSuccess() {
 
 		retryErr = errors.New("should retry this")
 		runner   = suite.newRunner(
-			WithShouldRetry(func(err error) bool {
+			WithShouldRetry(func(_ int, err error) bool {
 				return err == retryErr
 			}),
-			WithOnAttempt(onAttempt.OnAttempt),
-			WithPolicyFactory(Config{
+			WithOnAttempt[int](onAttempt.OnAttempt),
+			WithPolicyFactory[int](Config{
 				Interval: 5 * time.Second,
 			}),
 		)
@@ -111,11 +111,11 @@ func (suite *RunnerSuite) testRunWithRetriesAndCanceled() {
 
 		retryErr = errors.New("should retry this")
 		runner   = suite.newRunner(
-			WithShouldRetry(func(err error) bool {
+			WithShouldRetry(func(_ int, err error) bool {
 				return err == retryErr
 			}),
-			WithOnAttempt(onAttempt.OnAttempt),
-			WithPolicyFactory(Config{
+			WithOnAttempt[int](onAttempt.OnAttempt),
+			WithPolicyFactory[int](Config{
 				Interval: 5 * time.Second,
 			}),
 		)

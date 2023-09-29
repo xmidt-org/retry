@@ -90,7 +90,7 @@ func (suite *CommonSuite) assertStopped(d time.Duration, ok bool) {
 	suite.False(ok)
 }
 
-func (suite *CommonSuite) newRunner(o ...RunnerOption) Runner[int] {
+func (suite *CommonSuite) newRunner(o ...RunnerOption[int]) Runner[int] {
 	runner, err := NewRunner[int](o...)
 	suite.Require().NoError(err)
 	suite.Require().NotNil(runner)
@@ -98,5 +98,5 @@ func (suite *CommonSuite) newRunner(o ...RunnerOption) Runner[int] {
 }
 
 func (suite *CommonSuite) setTimer(r Runner[int], timer func(time.Duration) (<-chan time.Time, func() bool)) {
-	r.(*runner[int]).coreRunner.timer = timer
+	r.(*runner[int]).timer = timer
 }
