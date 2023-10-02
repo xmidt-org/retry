@@ -31,18 +31,22 @@ func (suite *CommonSuite) assertTestCtx(ctx context.Context) bool {
 
 // assertTestAttempt asserts that the expected attempt matches the actual *except*
 // as regards the context.  The actual.Context field is passed to assertTextCtx.
-func (suite *CommonSuite) assertTestAttempt(expected, actual Attempt) bool {
-	return suite.assertTestCtx(actual.Context) ||
-		suite.Equal(expected.Err, actual.Err) ||
-		suite.Equal(expected.Retries, actual.Retries) ||
-		suite.Equal(expected.Next, actual.Next)
+func (suite *CommonSuite) assertTestAttempt(expected, actual Attempt[int]) bool {
+	return suite.assertTestCtx(actual.Context) &&
+		suite.Equal(expected.Result, actual.Result, "Result field mismatch") &&
+		suite.Equal(expected.Err, actual.Err, "Err field mismatch") &&
+		suite.Equal(expected.Retries, actual.Retries, "Retries field mismatch") &&
+		suite.Equal(expected.Next, actual.Next, "Next field mismatch")
 }
 
 // newTestAttemptMatcher returns a mock MatchedBy function that matches the given
 // Attempt, assuming the context will be created by suite.testCtx.
-func (suite *CommonSuite) newTestAttemptMatcher(expected Attempt) func(Attempt) bool {
-	return func(actual Attempt) bool {
-		return suite.assertTestAttempt(expected, actual)
+func (suite *CommonSuite) newTestAttemptMatcher(expected Attempt[int]) func(Attempt[int]) bool {
+	return func(actual Attempt[int]) bool {
+		return expected.Result == actual.Result &&
+			expected.Err == actual.Err &&
+			expected.Retries == actual.Retries &&
+			expected.Next == actual.Next
 	}
 }
 

@@ -19,12 +19,12 @@ func (suite *AttemptSuite) TestDone() {
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 	testCases := []struct {
-		attempt  Attempt
+		attempt  Attempt[int]
 		expected bool
 		label    string
 	}{
 		{
-			attempt: Attempt{
+			attempt: Attempt[int]{
 				Context: context.Background(),
 				Next:    5 * time.Second,
 			},
@@ -32,7 +32,7 @@ func (suite *AttemptSuite) TestDone() {
 			label:    "NotDone",
 		},
 		{
-			attempt: Attempt{
+			attempt: Attempt[int]{
 				Context: canceledCtx,
 				Next:    5 * time.Second,
 			},
@@ -40,7 +40,7 @@ func (suite *AttemptSuite) TestDone() {
 			label:    "ContextCancelled",
 		},
 		{
-			attempt: Attempt{
+			attempt: Attempt[int]{
 				Context: context.Background(),
 				Next:    0,
 			},

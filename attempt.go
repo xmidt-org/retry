@@ -10,10 +10,13 @@ import (
 
 // Attempt represents the result of trying to invoke a task, including
 // a success.
-type Attempt struct {
+type Attempt[V any] struct {
 	// Context is the policy context that spans the task attempts.
 	// This field will never be nil.
 	Context context.Context
+
+	// Result is the value returned by the task attempt.
+	Result V
 
 	// Err is the error returned by the task.  If nil, this attempt
 	// represents a success.
@@ -35,7 +38,7 @@ type Attempt struct {
 // Done returns true if this represents the last attempt to execute the task.
 // A successful task attempt also returns true from this method, as there will
 // be no more attempts.
-func (a Attempt) Done() bool {
+func (a Attempt[V]) Done() bool {
 	return a.Next <= 0 || a.Context.Err() != nil
 }
 
@@ -43,4 +46,4 @@ func (a Attempt) Done() bool {
 // at invoking the task, including a successful one.
 //
 // This function must not panic or block, or task retries will be impacted.
-type OnAttempt func(Attempt)
+type OnAttempt[V any] func(Attempt[V])

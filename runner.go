@@ -47,7 +47,7 @@ func WithShouldRetry[V any](sr ShouldRetry[V]) RunnerOption[V] {
 
 // WithOnAttempt appends one or more callbacks for task results.  This option
 // can be applied repeatedly, and the set of OnAttempt callbacks is cumulative.
-func WithOnAttempt[V any](fns ...OnAttempt) RunnerOption[V] {
+func WithOnAttempt[V any](fns ...OnAttempt[V]) RunnerOption[V] {
 	return runnerOptionFunc[V](func(r *runner[V]) error {
 		r.onAttempts = append(r.onAttempts, fns...)
 		return nil
@@ -72,7 +72,7 @@ type Runner[V any] interface {
 type runner[V any] struct {
 	factory     PolicyFactory
 	shouldRetry ShouldRetry[V]
-	onAttempts  []OnAttempt
+	onAttempts  []OnAttempt[V]
 	timer       func(time.Duration) (<-chan time.Time, func() bool)
 }
 
@@ -93,8 +93,9 @@ func (r *runner[V]) newPolicy(ctx context.Context) Policy {
 // If onAttempt is set, it is invoked with an Attempt.  If the policy and the error
 // allow retries to continue, then interval will be positive and shouldRetry will be true.
 func (r *runner[V]) handleAttempt(p Policy, retries int, result V, err error) (interval time.Duration, shouldRetry bool) {
-	a := Attempt{
+	a := Attempt[V]{
 		Context: p.Context(),
+		Result:  result,
 		Err:     err,
 		Retries: retries,
 	}
