@@ -21,15 +21,17 @@ func (suite *RunnerSuite) testRunNoRetries() {
 		testCtx, _ = suite.testCtx()
 		task       = new(mockTask[int])
 
-		onAttempt = new(mockOnAttempt)
+		onAttempt = new(mockOnAttempt[int])
 		runner    = suite.newRunner(
-			WithOnAttempt(onAttempt.OnAttempt),
+			WithOnAttempt[int](onAttempt.OnAttempt),
 		)
 	)
 
 	task.ExpectMatch(suite.assertTestCtx, 123, nil).Once()
 	onAttempt.ExpectMatch(
-		suite.newTestAttemptMatcher(Attempt{}), // since no retries, the non-context fields will be zeroes
+		suite.newTestAttemptMatcher(Attempt[int]{
+			Result: 123,
+		}), // since no retries, the non-context fields will be zeroes
 	).Once()
 
 	result, err := runner.Run(testCtx, task.Do)
@@ -46,15 +48,15 @@ func (suite *RunnerSuite) testRunWithRetriesUntilSuccess() {
 		task       = new(mockTask[int])
 
 		timer     = new(mockTimer)
-		onAttempt = new(mockOnAttempt)
+		onAttempt = new(mockOnAttempt[int])
 
 		retryErr = errors.New("should retry this")
 		runner   = suite.newRunner(
-			WithShouldRetry(func(err error) bool {
-				return err == retryErr
+			WithShouldRetry(func(_ int, err error) bool {
+				return errors.Is(err, retryErr)
 			}),
-			WithOnAttempt(onAttempt.OnAttempt),
-			WithPolicyFactory(Config{
+			WithOnAttempt[int](onAttempt.OnAttempt),
+			WithPolicyFactory[int](Config{
 				Interval: 5 * time.Second,
 			}),
 		)
@@ -66,28 +68,32 @@ func (suite *RunnerSuite) testRunWithRetriesUntilSuccess() {
 	task.ExpectMatch(suite.assertTestCtx, -1, retryErr).Times(3)
 	task.ExpectMatch(suite.assertTestCtx, 123, nil).Once()
 	onAttempt.ExpectMatch(
-		suite.newTestAttemptMatcher(Attempt{
+		suite.newTestAttemptMatcher(Attempt[int]{
+			Result:  -1,
 			Err:     retryErr,
 			Retries: 0,
 			Next:    5 * time.Second,
 		}),
 	).Once()
 	onAttempt.ExpectMatch(
-		suite.newTestAttemptMatcher(Attempt{
+		suite.newTestAttemptMatcher(Attempt[int]{
+			Result:  -1,
 			Err:     retryErr,
 			Retries: 1,
 			Next:    5 * time.Second,
 		}),
 	).Once()
 	onAttempt.ExpectMatch(
-		suite.newTestAttemptMatcher(Attempt{
+		suite.newTestAttemptMatcher(Attempt[int]{
+			Result:  -1,
 			Err:     retryErr,
 			Retries: 2,
 			Next:    5 * time.Second,
 		}),
 	).Once()
 	onAttempt.ExpectMatch(
-		suite.newTestAttemptMatcher(Attempt{
+		suite.newTestAttemptMatcher(Attempt[int]{
+			Result:  123,
 			Retries: 3,
 		}),
 	).Once()
@@ -107,15 +113,15 @@ func (suite *RunnerSuite) testRunWithRetriesAndCanceled() {
 		task                = new(mockTask[int])
 
 		timer     = new(mockTimer)
-		onAttempt = new(mockOnAttempt)
+		onAttempt = new(mockOnAttempt[int])
 
 		retryErr = errors.New("should retry this")
 		runner   = suite.newRunner(
-			WithShouldRetry(func(err error) bool {
-				return err == retryErr
+			WithShouldRetry(func(_ int, err error) bool {
+				return errors.Is(err, retryErr)
 			}),
-			WithOnAttempt(onAttempt.OnAttempt),
-			WithPolicyFactory(Config{
+			WithOnAttempt[int](onAttempt.OnAttempt),
+			WithPolicyFactory[int](Config{
 				Interval: 5 * time.Second,
 			}),
 		)
@@ -131,21 +137,24 @@ func (suite *RunnerSuite) testRunWithRetriesAndCanceled() {
 
 	task.ExpectMatch(suite.assertTestCtx, -1, retryErr).Times(3)
 	onAttempt.ExpectMatch(
-		suite.newTestAttemptMatcher(Attempt{
+		suite.newTestAttemptMatcher(Attempt[int]{
+			Result:  -1,
 			Err:     retryErr,
 			Retries: 0,
 			Next:    5 * time.Second,
 		}),
 	).Once()
 	onAttempt.ExpectMatch(
-		suite.newTestAttemptMatcher(Attempt{
+		suite.newTestAttemptMatcher(Attempt[int]{
+			Result:  -1,
 			Err:     retryErr,
 			Retries: 1,
 			Next:    5 * time.Second,
 		}),
 	).Once()
 	onAttempt.ExpectMatch(
-		suite.newTestAttemptMatcher(Attempt{
+		suite.newTestAttemptMatcher(Attempt[int]{
+			Result:  -1,
 			Err:     retryErr,
 			Retries: 2,
 			Next:    5 * time.Second,
@@ -153,7 +162,7 @@ func (suite *RunnerSuite) testRunWithRetriesAndCanceled() {
 	).Once()
 
 	result, err := runner.Run(testCtx, task.Do)
-	suite.Equal(-1, result)
+	suite.Equal(0, result)
 	suite.Same(testCtx.Err(), err)
 
 	timer.AssertExpectations(suite.T())

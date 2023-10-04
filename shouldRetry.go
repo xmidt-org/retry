@@ -32,31 +32,38 @@ func SetRetryable(err error, retryable bool) error {
 	}
 }
 
-// ShouldRetry encapsulates the logic around whether an error should
-// prevent further retries.  Given an err and a predicate, the following
-// logic is applied, in order:
-//
-//   - if err == nil, this function returns false (i.e. the operation succeeded, so retries make no sense)
-//   - if err or anything in its error chain implements ShouldRetryable, then err.ShouldRetry() is returned
-//   - if p != nil, then p(err) is returned
-//   - for a non-nil error with none of the above ways to determine retryability, this function returns true
-//
-// Essentially, this function assumes all errors are retryable unless the
-// error itself or the predicate indicate otherwise.
-func ShouldRetry(err error, p func(error) bool) bool {
-	var sr ShouldRetryable
+// ShouldRetry is a predicate for determining whether a task's results
+// warrant a retry.
+type ShouldRetry[V any] func(V, error) bool
 
+// CheckRetry encapsulates the logic around determining whether a task
+// retry is warranted.
+//
+// If err == nil, this function returns false.  No error is assumed to be
+// a success, so no further retries are necessary.
+//
+// If the ShouldRetry predicate is not nil, the result of calling that
+// predicate is returned by this function.
+//
+// If err != nil and it implements ShouldRetryable, the result of that
+// error's ShouldRetry method is returned by this function.
+//
+// Failing all the above tests, this function returns true.  In other words,
+// in the absence of any other indications, any non-nil error indicates
+// that the task should be retried.
+func CheckRetry[V any](result V, err error, p ShouldRetry[V]) bool {
+	var sr ShouldRetryable
 	switch {
 	case err == nil:
-		return false
+		return false // successful task completion
+
+	case p != nil:
+		return p(result, err)
 
 	case errors.As(err, &sr):
 		return sr.ShouldRetry()
 
-	case p != nil:
-		return p(err)
-
 	default:
-		return true
+		return true // assume this task should be retried
 	}
 }

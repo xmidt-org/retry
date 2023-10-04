@@ -58,7 +58,7 @@ func (cp corePolicy) Context() context.Context {
 	return cp.ctx
 }
 
-func (cp corePolicy) Cancel() {
+func (cp *corePolicy) Cancel() {
 	if cp.cancel != nil {
 		cp.cancel()
 		cp.cancel = nil

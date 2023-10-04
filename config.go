@@ -65,7 +65,7 @@ func (c Config) newPolicyCtx(parentCtx context.Context) (context.Context, contex
 func (c Config) NewPolicy(parentCtx context.Context) Policy {
 	ctx, cancel := c.newPolicyCtx(parentCtx)
 	if c.Interval <= 0 {
-		return never{
+		return &never{
 			ctx:    ctx,
 			cancel: cancel,
 		}

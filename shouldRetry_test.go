@@ -34,44 +34,48 @@ func (suite *ShouldRetrySuite) TestSetRetryable() {
 
 func (suite *ShouldRetrySuite) TestNilError() {
 	suite.Run("NoPredicate", func() {
-		suite.False(ShouldRetry(nil, nil))
+		suite.False(CheckRetry(123, nil, nil))
 	})
 
 	suite.Run("WithPredicate", func() {
-		suite.False(ShouldRetry(nil, func(error) bool { return true }))
+		suite.False(CheckRetry(123, nil, func(int, error) bool { return true }))
 	})
 }
 
 func (suite *ShouldRetrySuite) TestShouldRetryable() {
 	suite.Run("NoPredicate", func() {
 		suite.True(
-			ShouldRetry(
+			CheckRetry(
+				123,
 				SetRetryable(errors.New("expected"), true),
 				nil,
 			),
 		)
 
 		suite.False(
-			ShouldRetry(
+			CheckRetry(
+				123,
 				SetRetryable(errors.New("expected"), false),
 				nil,
 			),
 		)
 	})
 
-	// the predicate should be ignored in favor of the retryable error
+	// the predicate should be used instead of the error
 	suite.Run("WithPredicate", func() {
-		suite.True(
-			ShouldRetry(
+		suite.False(
+			CheckRetry(
+				123,
 				SetRetryable(errors.New("expected"), true),
-				func(error) bool { return false },
+				func(int, error) bool { return false },
 			),
 		)
 
-		suite.False(
-			ShouldRetry(
+		suite.True(
+			CheckRetry(
+				123,
 				SetRetryable(errors.New("expected"), false),
-				func(error) bool { return true },
+				func(int, error) bool { return true },
 			),
 		)
 	})
@@ -81,9 +85,10 @@ func (suite *ShouldRetrySuite) TestPredicate() {
 	expectedErr := errors.New("expected")
 
 	suite.True(
-		ShouldRetry(
+		CheckRetry(
+			123,
 			expectedErr,
-			func(actualErr error) bool {
+			func(_ int, actualErr error) bool {
 				suite.Same(expectedErr, actualErr)
 				return true
 			},
@@ -91,9 +96,10 @@ func (suite *ShouldRetrySuite) TestPredicate() {
 	)
 
 	suite.False(
-		ShouldRetry(
+		CheckRetry(
+			123,
 			expectedErr,
-			func(actualErr error) bool {
+			func(_ int, actualErr error) bool {
 				suite.Same(expectedErr, actualErr)
 				return false
 			},
@@ -103,7 +109,8 @@ func (suite *ShouldRetrySuite) TestPredicate() {
 
 func (suite *ShouldRetrySuite) TestFallthrough() {
 	suite.True(
-		ShouldRetry(
+		CheckRetry(
+			123,
 			errors.New("by default, all errors are retryable"),
 			nil,
 		),
