@@ -51,18 +51,6 @@ func (m *mockTimer) ExpectConstant(d time.Duration, times int) *mock.Call {
 	return m.ExpectTimer(d, ch)
 }
 
-type mockShouldRetry struct {
-	mock.Mock
-}
-
-func (m *mockShouldRetry) ShouldRetry(err error) bool {
-	return m.Called(err).Bool(0)
-}
-
-func (m *mockShouldRetry) Expect(err error, result bool) *mock.Call {
-	return m.On("ShouldRetry", err).Return(result)
-}
-
 type mockOnAttempt[V any] struct {
 	mock.Mock
 }
