@@ -85,7 +85,7 @@ func WithRunner(ro ...retry.RunnerOption[*http.Response]) ClientOption {
 	return clientOptionFunc(func(c *Client) (err error) {
 		ro = append(
 			ro,
-			WithOnAttempt(cleanupResponse), // ensure that the response is cleaned up after failed attempts
+			WithOnAttempt(cleanupResponse),
 		)
 
 		c.runner, err = retry.NewRunner[*http.Response](ro...)
