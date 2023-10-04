@@ -58,7 +58,9 @@ func WithOnAttempt[V any](fns ...OnAttempt[V]) RunnerOption[V] {
 // with a PolicyFactory, a ShouldRetry strategy, and one or more OnAttempt callbacks.
 type Runner[V any] interface {
 	// Run executes a task at least once, retrying failures according to
-	// the configured PolicyFactory.
+	// the configured PolicyFactory.  If all attempts fail, this method returns
+	// the error along with the zero value for V.  Otherwise, the value V that
+	// resulted from the final, successful attempt is returned along with a nil error.
 	//
 	// The context passed to this method must never be nil.  Use context.Background()
 	// or context.TODO() as appropriate rather than nil.
@@ -80,7 +82,7 @@ type runner[V any] struct {
 func (r *runner[V]) newPolicy(ctx context.Context) Policy {
 	if r.factory == nil {
 		taskCtx, cancel := context.WithCancel(ctx)
-		return never{
+		return &never{
 			ctx:    taskCtx,
 			cancel: cancel,
 		}
@@ -136,10 +138,13 @@ func (r *runner[V]) awaitRetry(taskCtx context.Context, interval time.Duration) 
 func (r *runner[V]) Run(parentCtx context.Context, task Task[V]) (result V, err error) {
 	p := r.newPolicy(parentCtx)
 	defer p.Cancel()
+
+	var attemptResult V
 	for taskCtx, retries := p.Context(), 0; taskCtx.Err() == nil; retries++ {
-		result, err = task(taskCtx)
-		interval, keepTrying := r.handleAttempt(p, retries, result, err)
+		attemptResult, err = task(taskCtx)
+		interval, keepTrying := r.handleAttempt(p, retries, attemptResult, err)
 		if !keepTrying {
+			result = attemptResult
 			break
 		}
 

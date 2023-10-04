@@ -16,15 +16,15 @@ type never struct {
 	cancel context.CancelFunc
 }
 
-func (n never) Context() context.Context {
+func (n *never) Context() context.Context {
 	return n.ctx
 }
 
-func (n never) Cancel() {
+func (n *never) Cancel() {
 	if n.cancel != nil {
 		n.cancel()
 		n.cancel = nil
 	}
 }
 
-func (n never) Next() (time.Duration, bool) { return 0, false }
+func (n *never) Next() (time.Duration, bool) { return 0, false }

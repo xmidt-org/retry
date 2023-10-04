@@ -59,9 +59,9 @@ func (suite *CommonSuite) requirePolicy(p Policy) Policy {
 
 // requireNever fails the enclosing test if p is not a never policy.  The
 // never instance is returned for further testing.
-func (suite *CommonSuite) requireNever(p Policy) never {
+func (suite *CommonSuite) requireNever(p Policy) *never {
 	suite.Require().IsType(never{}, p)
-	return p.(never)
+	return p.(*never)
 }
 
 // requireConstant fails the enclosing test if p is not a constant policy.  The

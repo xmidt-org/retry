@@ -162,7 +162,7 @@ func (suite *RunnerSuite) testRunWithRetriesAndCanceled() {
 	).Once()
 
 	result, err := runner.Run(testCtx, task.Do)
-	suite.Equal(-1, result)
+	suite.Equal(0, result)
 	suite.Same(testCtx.Err(), err)
 
 	timer.AssertExpectations(suite.T())
