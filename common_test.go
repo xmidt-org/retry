@@ -5,6 +5,7 @@ package retry
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/stretchr/testify/suite"
@@ -29,22 +30,12 @@ func (suite *CommonSuite) assertTestCtx(ctx context.Context) bool {
 	return suite.Equal("test", ctx.Value(contextKey{}))
 }
 
-// assertTestAttempt asserts that the expected attempt matches the actual *except*
-// as regards the context.  The actual.Context field is passed to assertTextCtx.
-func (suite *CommonSuite) assertTestAttempt(expected, actual Attempt[int]) bool {
-	return suite.assertTestCtx(actual.Context) &&
-		suite.Equal(expected.Result, actual.Result, "Result field mismatch") &&
-		suite.Equal(expected.Err, actual.Err, "Err field mismatch") &&
-		suite.Equal(expected.Retries, actual.Retries, "Retries field mismatch") &&
-		suite.Equal(expected.Next, actual.Next, "Next field mismatch")
-}
-
 // newTestAttemptMatcher returns a mock MatchedBy function that matches the given
 // Attempt, assuming the context will be created by suite.testCtx.
 func (suite *CommonSuite) newTestAttemptMatcher(expected Attempt[int]) func(Attempt[int]) bool {
 	return func(actual Attempt[int]) bool {
 		return expected.Result == actual.Result &&
-			expected.Err == actual.Err &&
+			errors.Is(actual.Err, expected.Err) &&
 			expected.Retries == actual.Retries &&
 			expected.Next == actual.Next
 	}
@@ -60,7 +51,7 @@ func (suite *CommonSuite) requirePolicy(p Policy) Policy {
 // requireNever fails the enclosing test if p is not a never policy.  The
 // never instance is returned for further testing.
 func (suite *CommonSuite) requireNever(p Policy) *never {
-	suite.Require().IsType(never{}, p)
+	suite.Require().IsType((*never)(nil), p)
 	return p.(*never)
 }
 

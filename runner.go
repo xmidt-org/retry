@@ -21,7 +21,7 @@ type RunnerOption[V any] interface {
 
 type runnerOptionFunc[V any] func(*runner[V]) error
 
-func (rof runnerOptionFunc[V]) apply(r *runner[V]) error { return rof(r) }
+func (rof runnerOptionFunc[V]) apply(r *runner[V]) error { return rof(r) } //nolint:unused
 
 // WithPolicyFactory returns a RunnerOption that assigns the given PolicyFactory
 // to the created task runner.
