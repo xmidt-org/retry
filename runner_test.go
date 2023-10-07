@@ -187,6 +187,21 @@ func (suite *RunnerSuite) TestRun() {
 	suite.Run("WithRetriesAndCanceled", suite.testRunWithRetriesAndCanceled)
 }
 
+func (suite *RunnerSuite) TestOptionError() {
+	var (
+		expectedErr       = errors.New("expected")
+		runner, actualErr = NewRunner[int](
+			runnerOptionFunc[int](func(r *runner[int]) error {
+				suite.NotNil(r)
+				return expectedErr
+			}),
+		)
+	)
+
+	suite.Nil(runner)
+	suite.Same(expectedErr, actualErr)
+}
+
 func TestRunner(t *testing.T) {
 	suite.Run(t, new(RunnerSuite))
 }
