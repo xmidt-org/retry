@@ -16,6 +16,17 @@ type RunnerSuite struct {
 	CommonSuite
 }
 
+// TestDefaultTimer is just a smoke test to make sure the defaultTimer
+// operates basically as intended.
+func (suite *RunnerSuite) TestDefaultTimer() {
+	ch, stop := defaultTimer(100 * time.Millisecond)
+	suite.NotNil(ch)
+	suite.Require().NotNil(stop)
+
+	stop()
+	stop() // idempotent
+}
+
 func (suite *RunnerSuite) testRunNoRetries() {
 	var (
 		testCtx, _ = suite.testCtx()
