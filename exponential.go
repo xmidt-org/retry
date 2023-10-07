@@ -44,7 +44,7 @@ func (e *exponential) nextBaseInterval() (base time.Duration) {
 }
 
 // jitterize computes a random interval using the jitter value.  If jitter is
-// nonpositive, this method returns base as is.
+// nonpositive, this method returns base subject to the max interval.
 func (e *exponential) jitterize(base time.Duration) (next time.Duration) {
 	next = base
 	if e.jitter > 0.0 {
