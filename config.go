@@ -44,7 +44,7 @@ type Config struct {
 	// MaxElapsedTime is the absolute amount of time an operation and its retries are
 	// allowed to take before giving up.  If this field is nonpositive, no maximum
 	// elapsed time is enforced.
-	MaxElapsedTime time.Duration `json:"maxElapsedtime" yaml:"maxElapsedTime"`
+	MaxElapsedTime time.Duration `json:"maxElapsedTime" yaml:"maxElapsedTime"`
 
 	// MaxInterval is the upper limit for each retry interval for an exponential backoff.
 	// If Jitter and Multiplier are unset, or if this value is smaller than Interval, then
