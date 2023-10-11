@@ -27,18 +27,15 @@ func NewShouldRetry(statusCodes ...int) retry.ShouldRetry[*http.Response] {
 		var t temporary
 
 		switch {
-		// handle misbehaving client middleware that return nil responses when they shouldn't
-		case response == nil:
-			return false
+		// guard against client middleware that sometimes incorrectly returns nil responses and nil errors
+		case err == nil && response != nil:
+			return codes[response.StatusCode]
 
 		case errors.As(err, &t):
 			return t.Temporary()
 
-		case err != nil:
-			return false
-
 		default:
-			return codes[response.StatusCode]
+			return false
 		}
 	}
 }
