@@ -16,7 +16,6 @@ func cleanupResponse(a retry.Attempt[*http.Response]) {
 	if !a.Done() && a.Result != nil && a.Result.Body != nil {
 		io.Copy(io.Discard, a.Result.Body)
 		a.Result.Body.Close()
-		a.Result.Body = nil
 	}
 }
 
@@ -79,12 +78,17 @@ func WithRequesters(r ...Requester) ClientOption {
 	})
 }
 
+// Client is an HTTPClient that retries HTTP requests according to a retry
+// policy established with WithRunner.
 type Client struct {
 	hc         HTTPClient
 	runner     retry.Runner[*http.Response]
 	requesters []Requester
 }
 
+// NewClient creates a Client from a set of options.  If no options are passed,
+// the returned Client will never retry any request and will use http.DefaultClient
+// to execute transactions.
 func NewClient(opts ...ClientOption) (c *Client, err error) {
 	c = new(Client)
 	for _, o := range opts {
@@ -95,11 +99,6 @@ func NewClient(opts ...ClientOption) (c *Client, err error) {
 
 	if err == nil && c.hc == nil {
 		c.hc = http.DefaultClient
-	}
-
-	if err == nil && c.runner == nil {
-		// since no retries will be performed, don't bother adding cleanupResponse
-		c.runner, err = retry.NewRunner[*http.Response]()
 	}
 
 	if err != nil {
@@ -149,9 +148,18 @@ func (c *Client) newTask(original *http.Request) retry.Task[*http.Response] {
 // Set the request's GetBody, just as one would for redirects, to allow per-request bodies.
 // Note that http.NewRequest and http.NewRequestWithContext both set GetBody for common
 // standard library types.
-func (c *Client) Do(original *http.Request) (*http.Response, error) {
-	return c.runner.Run(
-		original.Context(),
-		c.newTask(original),
-	)
+func (c *Client) Do(request *http.Request) (*http.Response, error) {
+	if c.runner != nil {
+		return c.runner.Run(
+			request.Context(),
+			c.newTask(request),
+		)
+	}
+
+	// still execute the requester strategies
+	for _, r := range c.requesters {
+		request = r(request)
+	}
+
+	return c.hc.Do(request)
 }
