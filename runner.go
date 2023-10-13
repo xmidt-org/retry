@@ -14,6 +14,13 @@ func defaultTimer(d time.Duration) (<-chan time.Time, func() bool) {
 	return t.C, t.Stop
 }
 
+// Timer is a closure strategy for starting a timer.  The returned stop
+// function has the same semantics as time.Timer.Stop.
+//
+// The default Timer used internally delegates to time.NewTimer.  A custom
+// Timer is primarily useful in unit tests.
+type Timer func(time.Duration) (ch <-chan time.Time, stop func() bool)
+
 // RunnerOption is a configurable option for creating a task runner.
 type RunnerOption[V any] interface {
 	apply(*runner[V]) error
@@ -21,7 +28,16 @@ type RunnerOption[V any] interface {
 
 type runnerOptionFunc[V any] func(*runner[V]) error
 
-func (rof runnerOptionFunc[V]) apply(r *runner[V]) error { return rof(r) } //nolint:unused
+func (rof runnerOptionFunc[V]) apply(r *runner[V]) error { return rof(r) }
+
+// WithTimer supplies a custom Timer for the Runner.  This option is primarily
+// useful for testing.
+func WithTimer[V any](t Timer) RunnerOption[V] {
+	return runnerOptionFunc[V](func(r *runner[V]) error {
+		r.timer = t
+		return nil
+	})
+}
 
 // WithPolicyFactory returns a RunnerOption that assigns the given PolicyFactory
 // to the created task runner.

@@ -35,6 +35,14 @@ type HTTPClient interface {
 // to be supplied before each attempt instead of in the original request.
 type Requester func(*http.Request) *http.Request
 
+// WithShouldRetry creates a Client runner option that retries the given
+// status codes.  NewShouldRetry is used to create the retry predicate.
+func WithShouldRetry(statusCodes ...int) retry.RunnerOption[*http.Response] {
+	return retry.WithShouldRetry(
+		NewShouldRetry(statusCodes...),
+	)
+}
+
 // ClientOption is a configurable option for a Client.
 type ClientOption interface {
 	apply(*Client) error
@@ -59,7 +67,7 @@ func WithHTTPClient(hc HTTPClient) ClientOption {
 func WithRunner(opts ...retry.RunnerOption[*http.Response]) ClientOption {
 	return clientOptionFunc(func(c *Client) error {
 		opts = append(opts, retry.WithOnAttempt(cleanupResponse))
-		runner, err := retry.NewRunner(opts...)
+		runner, err := retry.NewRunner[*http.Response](opts...)
 		if err != nil {
 			return err
 		}

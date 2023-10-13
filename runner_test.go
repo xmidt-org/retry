@@ -63,6 +63,7 @@ func (suite *RunnerSuite) testRunWithRetriesUntilSuccess() {
 
 		retryErr = errors.New("should retry this")
 		runner   = suite.newRunner(
+			WithTimer[int](timer.Timer),
 			WithShouldRetry(func(_ int, err error) bool {
 				return errors.Is(err, retryErr)
 			}),
@@ -74,7 +75,6 @@ func (suite *RunnerSuite) testRunWithRetriesUntilSuccess() {
 	)
 
 	timer.ExpectConstant(5*time.Second, 3).Times(3)
-	suite.setTimer(runner, timer.Timer)
 
 	task.ExpectMatch(suite.assertTestCtx, -1, retryErr).Times(3)
 	task.ExpectMatch(suite.assertTestCtx, 123, nil).Once()
@@ -128,6 +128,7 @@ func (suite *RunnerSuite) testRunWithRetriesAndCanceled() {
 
 		retryErr = errors.New("should retry this")
 		runner   = suite.newRunner(
+			WithTimer[int](timer.Timer),
 			WithShouldRetry(func(_ int, err error) bool {
 				return errors.Is(err, retryErr)
 			}),
@@ -143,8 +144,6 @@ func (suite *RunnerSuite) testRunWithRetriesAndCanceled() {
 		testCancel()
 	})
 	timer.ExpectStop(true).Once()
-
-	suite.setTimer(runner, timer.Timer)
 
 	task.ExpectMatch(suite.assertTestCtx, -1, retryErr).Times(3)
 	onAttempt.ExpectMatch(

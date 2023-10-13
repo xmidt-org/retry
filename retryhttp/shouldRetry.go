@@ -39,11 +39,3 @@ func NewShouldRetry(statusCodes ...int) retry.ShouldRetry[*http.Response] {
 		}
 	}
 }
-
-// WithShouldRetry creates a Client runner option that retries the given
-// status codes.  NewShouldRetry is used to create the retry predicate.
-func WithShouldRetry(statusCodes ...int) retry.RunnerOption[*http.Response] {
-	return retry.WithShouldRetry(
-		NewShouldRetry(statusCodes...),
-	)
-}
