@@ -175,14 +175,15 @@ func (r *runner[V]) Run(parentCtx context.Context, task Task[V]) (result V, err 
 
 // NewRunner creates a Runner using the supplied set of options.
 func NewRunner[V any](opts ...RunnerOption[V]) (Runner[V], error) {
-	r := &runner[V]{
-		timer: defaultTimer,
-	}
-
+	r := new(runner[V])
 	for _, o := range opts {
 		if err := o.apply(r); err != nil {
 			return nil, err
 		}
+	}
+
+	if r.timer == nil {
+		r.timer = defaultTimer
 	}
 
 	return r, nil
