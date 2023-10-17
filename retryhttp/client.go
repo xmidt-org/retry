@@ -2,22 +2,10 @@ package retryhttp
 
 import (
 	"context"
-	"io"
 	"net/http"
 
 	"github.com/xmidt-org/retry"
 )
-
-// cleanupResponse is an OnAttempt that drains and closes the response body
-// between each attempt.  If the given attempt is the last one, including if
-// it represents an error, the response is left as is for the Client's caller
-// to deal with.
-func cleanupResponse(a retry.Attempt[*http.Response]) {
-	if !a.Done() && a.Result != nil && a.Result.Body != nil {
-		io.Copy(io.Discard, a.Result.Body)
-		a.Result.Body.Close()
-	}
-}
 
 // HTTPClient is the required behavior of anything that can execute
 // HTTP transactions.
@@ -61,18 +49,12 @@ func WithHTTPClient(hc HTTPClient) ClientOption {
 	})
 }
 
-// WithRunner sets the retry.Runner for the Client.  An OnAttempt is appended
-// that cleans up HTTP responses between attempts, leaving the last response
-// untouched so that callers may inspect it.
-func WithRunner(opts ...retry.RunnerOption[*http.Response]) ClientOption {
+// WithRunner sets the retry.Runner for the Client.  In order to prevent leaking
+// response bodies between retry attempts, the given runner should have the CleanupResponse
+// retry.OnAttempt appended to its options.
+func WithRunner(r retry.Runner[*http.Response]) ClientOption {
 	return clientOptionFunc(func(c *Client) error {
-		opts = append(opts, retry.WithOnAttempt(cleanupResponse))
-		runner, err := retry.NewRunner[*http.Response](opts...)
-		if err != nil {
-			return err
-		}
-
-		c.runner = runner
+		c.runner = r
 		return nil
 	})
 }
@@ -142,9 +124,8 @@ func (c *Client) newTask(original *http.Request) retry.Task[*http.Response] {
 	}
 }
 
-// Do executes the HTTP transaction specified by the request.  Any policy factory
-// specified to WithRunner will determine if and how often the HTTP transaction
-// is retried.
+// Do executes the HTTP transaction specified by the request.  The runner specified
+// via WithRunner is used to retry requests.
 //
 // The context of the original request is used as the absolute bounds for all retries.
 // If the request was not created with a context, then only the retry policy will govern
