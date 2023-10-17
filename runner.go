@@ -8,19 +8,6 @@ import (
 	"time"
 )
 
-// defaultTimer is the strategy used to create a timer using the stdlib.
-func defaultTimer(d time.Duration) (<-chan time.Time, func() bool) {
-	t := time.NewTimer(d)
-	return t.C, t.Stop
-}
-
-// Timer is a closure strategy for starting a timer.  The returned stop
-// function has the same semantics as time.Timer.Stop.
-//
-// The default Timer used internally delegates to time.NewTimer.  A custom
-// Timer is primarily useful in unit tests.
-type Timer func(time.Duration) (ch <-chan time.Time, stop func() bool)
-
 // RunnerOption is a configurable option for creating a task runner.
 type RunnerOption[V any] interface {
 	apply(*runner[V]) error
