@@ -23,7 +23,7 @@ func (suite *TimerSuite) TestDefaultTimer() {
 }
 
 func (suite *TimerSuite) TestImmediateTimer() {
-	ch, stop := ImmediateTimer(5 * time.Second)
+	ch, stop := immediateTimer(5 * time.Second)
 	suite.Require().NotNil(ch)
 	suite.Require().NotNil(stop)
 

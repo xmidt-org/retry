@@ -26,6 +26,12 @@ func WithTimer[V any](t Timer) RunnerOption[V] {
 	})
 }
 
+// WithImmediateTimer configures the Runner with a Timer that immediately
+// fires without waiting.  Useful mainly for unit tests.
+func WithImmediateTimer[V any]() RunnerOption[V] {
+	return WithTimer[V](immediateTimer)
+}
+
 // WithPolicyFactory returns a RunnerOption that assigns the given PolicyFactory
 // to the created task runner.
 //
