@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,41 +17,64 @@ import (
 
 var testResponse = []byte("test response")
 
-type handlerState struct {
+type testHandler struct {
 	lock             sync.Mutex
+	expectedHeader   http.Header
 	expectedAttempts int
 	attempts         int
 }
 
-func (hs *handlerState) resetAttempts(expectedAttempts int) {
-	defer hs.lock.Unlock()
-	hs.lock.Lock()
+func (th *testHandler) resetAttempts(expectedAttempts int, expectedHeader http.Header) {
+	defer th.lock.Unlock()
+	th.lock.Lock()
 
-	hs.expectedAttempts = expectedAttempts
-	hs.attempts = 0
+	th.expectedHeader = expectedHeader
+	th.expectedAttempts = expectedAttempts
+	th.attempts = 0
 }
 
-func (hs *handlerState) onAttempt() (done bool) {
-	defer hs.lock.Unlock()
-	hs.lock.Lock()
+func (th *testHandler) onAttempt() (done bool) {
+	defer th.lock.Unlock()
+	th.lock.Lock()
 
-	hs.attempts++
-	if hs.attempts >= hs.expectedAttempts {
+	th.attempts++
+	if th.attempts >= th.expectedAttempts {
 		done = true
 	}
 
 	return
 }
 
+func (th *testHandler) ServeHTTP(rw http.ResponseWriter, request *http.Request) {
+	defer th.lock.Unlock()
+	th.lock.Lock()
+
+	for name := range th.expectedHeader {
+		if !slices.Equal(th.expectedHeader[name], request.Header[name]) {
+			rw.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	}
+
+	th.attempts++
+	if th.attempts >= th.expectedAttempts {
+		rw.WriteHeader(http.StatusOK)
+	} else {
+		rw.WriteHeader(http.StatusServiceUnavailable)
+	}
+
+	rw.Write(testResponse)
+}
+
 type ClientSuite struct {
 	suite.Suite
-	handlerState
+	th testHandler
 
 	server *httptest.Server
 }
 
 func (suite *ClientSuite) SetupSuite() {
-	suite.server = httptest.NewServer(suite)
+	suite.server = httptest.NewServer(&suite.th)
 }
 
 func (suite *ClientSuite) TearDownSuite() {
@@ -96,25 +120,37 @@ func (suite *ClientSuite) assertSuccess(response *http.Response, err error) {
 	suite.Equal(testResponse, o.Bytes())
 }
 
-// ServeHTTP lets this suite be an http.Handler that returns a series of http.StatusServiceUnavailable
-// results followed by a final http.StatusOK.  The number of unavailable codes returned is managed
-// by the handler state.
-func (suite *ClientSuite) ServeHTTP(rw http.ResponseWriter, request *http.Request) {
-	if suite.onAttempt() {
-		rw.WriteHeader(http.StatusOK)
-	} else {
-		rw.WriteHeader(http.StatusServiceUnavailable)
-	}
+func (suite *ClientSuite) testGetDefault() {
+	c := suite.newClient()
+	suite.th.resetAttempts(1, nil)
+	suite.assertSuccess(c.Do(suite.newTestGet()))
+}
 
-	rw.Write(testResponse)
+func (suite *ClientSuite) testGetDefaultWithRequesters() {
+	c := suite.newClient(
+		WithRequesters(
+			func(request *http.Request) *http.Request {
+				request.Header.Set("Test1", "true")
+				return request
+			},
+			func(request *http.Request) *http.Request {
+				request.Header.Set("Test2", "true")
+				return request
+			},
+		),
+	)
+	suite.th.resetAttempts(1, http.Header{"Test1": []string{"true"}, "Test2": []string{"true"}})
+	suite.assertSuccess(c.Do(suite.newTestGet()))
+}
+
+func (suite *ClientSuite) testGet(c *Client, expectedHeader http.Header) {
+	suite.th.resetAttempts(3, expectedHeader)
+	suite.assertSuccess(c.Do(suite.newTestGet()))
 }
 
 func (suite *ClientSuite) TestGet() {
-	suite.Run("Default", func() {
-		c := suite.newClient()
-		suite.resetAttempts(1)
-		suite.assertSuccess(c.Do(suite.newTestGet()))
-	})
+	suite.Run("Default", suite.testGetDefault)
+	suite.Run("DefaultWithRequesters", suite.testGetDefaultWithRequesters)
 
 	suite.Run("WithRequesters", func() {
 		c := suite.newClient(
@@ -138,11 +174,33 @@ func (suite *ClientSuite) TestGet() {
 			),
 		)
 
-		suite.resetAttempts(3)
-		suite.assertSuccess(c.Do(suite.newTestGet()))
+		suite.testGet(c, http.Header{"Test": []string{"true"}})
 	})
 
 	suite.Run("WithCustomClient", func() {
+		c := suite.newClient(
+			WithHTTPClient(new(http.Client)),
+			WithRunner(
+				suite.newRunner(
+					retry.WithPolicyFactory[*http.Response](
+						retry.Config{
+							Interval: 5 * time.Second, // won't matter due to the immediate timer
+						},
+					),
+					retry.WithOnAttempt(CleanupResponse),
+					WithShouldRetry(http.StatusServiceUnavailable),
+					retry.WithImmediateTimer[*http.Response](),
+				),
+			),
+			WithRequesters(
+				func(request *http.Request) *http.Request {
+					request.Header.Set("Test", "true")
+					return request
+				},
+			),
+		)
+
+		suite.testGet(c, http.Header{"Test": []string{"true"}})
 	})
 }
 
