@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -31,18 +30,6 @@ func (th *testHandler) resetAttempts(expectedAttempts int, expectedHeader http.H
 	th.expectedHeader = expectedHeader
 	th.expectedAttempts = expectedAttempts
 	th.attempts = 0
-}
-
-func (th *testHandler) onAttempt() (done bool) {
-	defer th.lock.Unlock()
-	th.lock.Lock()
-
-	th.attempts++
-	if th.attempts >= th.expectedAttempts {
-		done = true
-	}
-
-	return
 }
 
 func (th *testHandler) ServeHTTP(rw http.ResponseWriter, request *http.Request) {
@@ -97,13 +84,6 @@ func (suite *ClientSuite) newClient(opts ...ClientOption) *Client {
 
 func (suite *ClientSuite) newTestGet() *http.Request {
 	request, err := http.NewRequest("GET", suite.server.URL+"/test", nil)
-	suite.Require().NoError(err)
-	suite.Require().NotNil(request)
-	return request
-}
-
-func (suite *ClientSuite) newTestPut() *http.Request {
-	request, err := http.NewRequest("PUT", suite.server.URL+"/test", strings.NewReader("test"))
 	suite.Require().NoError(err)
 	suite.Require().NotNil(request)
 	return request
