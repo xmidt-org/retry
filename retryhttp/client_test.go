@@ -2,6 +2,7 @@ package retryhttp
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,10 @@ import (
 	"github.com/xmidt-org/retry"
 )
 
-var testResponse = []byte("test response")
+var (
+	testBody     = []byte("test request body")
+	testResponse = []byte("test response")
+)
 
 type testHandler struct {
 	lock             sync.Mutex
@@ -39,6 +43,16 @@ func (th *testHandler) ServeHTTP(rw http.ResponseWriter, request *http.Request) 
 	for name := range th.expectedHeader {
 		if !slices.Equal(th.expectedHeader[name], request.Header[name]) {
 			rw.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(rw, "Missing expected header: %s", name)
+			return
+		}
+	}
+
+	if request.Method != http.MethodGet {
+		body, _ := io.ReadAll(request.Body)
+		if !slices.Equal(testBody, body) {
+			rw.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(rw, "Unexpected body [%s]", string(body))
 			return
 		}
 	}
@@ -82,8 +96,15 @@ func (suite *ClientSuite) newClient(opts ...ClientOption) *Client {
 	return c
 }
 
-func (suite *ClientSuite) newTestGet() *http.Request {
+func (suite *ClientSuite) newTestGetRequest() *http.Request {
 	request, err := http.NewRequest("GET", suite.server.URL+"/test", nil)
+	suite.Require().NoError(err)
+	suite.Require().NotNil(request)
+	return request
+}
+
+func (suite *ClientSuite) newTestPutRequest() *http.Request {
+	request, err := http.NewRequest("PUT", suite.server.URL+"/test", bytes.NewReader(testBody))
 	suite.Require().NoError(err)
 	suite.Require().NotNil(request)
 	return request
@@ -103,7 +124,7 @@ func (suite *ClientSuite) assertSuccess(response *http.Response, err error) {
 func (suite *ClientSuite) testGetDefault() {
 	c := suite.newClient()
 	suite.th.resetAttempts(1, nil)
-	suite.assertSuccess(c.Do(suite.newTestGet()))
+	suite.assertSuccess(c.Do(suite.newTestGetRequest()))
 }
 
 func (suite *ClientSuite) testGetDefaultWithRequesters() {
@@ -120,12 +141,12 @@ func (suite *ClientSuite) testGetDefaultWithRequesters() {
 		),
 	)
 	suite.th.resetAttempts(1, http.Header{"Test1": []string{"true"}, "Test2": []string{"true"}})
-	suite.assertSuccess(c.Do(suite.newTestGet()))
+	suite.assertSuccess(c.Do(suite.newTestGetRequest()))
 }
 
 func (suite *ClientSuite) testGet(c *Client, expectedHeader http.Header) {
 	suite.th.resetAttempts(3, expectedHeader)
-	suite.assertSuccess(c.Do(suite.newTestGet()))
+	suite.assertSuccess(c.Do(suite.newTestGetRequest()))
 }
 
 func (suite *ClientSuite) TestGet() {
@@ -181,6 +202,90 @@ func (suite *ClientSuite) TestGet() {
 		)
 
 		suite.testGet(c, http.Header{"Test": []string{"true"}})
+	})
+}
+
+func (suite *ClientSuite) testPutDefault() {
+	c := suite.newClient()
+	suite.th.resetAttempts(1, nil)
+	suite.assertSuccess(c.Do(suite.newTestPutRequest()))
+}
+
+func (suite *ClientSuite) testPutDefaultWithRequesters() {
+	c := suite.newClient(
+		WithRequesters(
+			func(request *http.Request) *http.Request {
+				request.Header.Set("Test1", "true")
+				return request
+			},
+			func(request *http.Request) *http.Request {
+				request.Header.Set("Test2", "true")
+				return request
+			},
+		),
+	)
+	suite.th.resetAttempts(1, http.Header{"Test1": []string{"true"}, "Test2": []string{"true"}})
+	suite.assertSuccess(c.Do(suite.newTestPutRequest()))
+}
+
+func (suite *ClientSuite) testPut(c *Client, expectedHeader http.Header) {
+	suite.th.resetAttempts(3, expectedHeader)
+	suite.assertSuccess(c.Do(suite.newTestPutRequest()))
+}
+
+func (suite *ClientSuite) TestPut() {
+	suite.Run("Default", suite.testPutDefault)
+	suite.Run("DefaultWithRequesters", suite.testPutDefaultWithRequesters)
+
+	suite.Run("WithRequesters", func() {
+		c := suite.newClient(
+			WithRunner(
+				suite.newRunner(
+					retry.WithPolicyFactory[*http.Response](
+						retry.Config{
+							Interval: 5 * time.Second, // won't matter due to the immediate timer
+						},
+					),
+					retry.WithOnAttempt(CleanupResponse),
+					WithShouldRetry(http.StatusServiceUnavailable),
+					retry.WithImmediateTimer[*http.Response](),
+				),
+			),
+			WithRequesters(
+				func(request *http.Request) *http.Request {
+					request.Header.Set("Test", "true")
+					return request
+				},
+			),
+		)
+
+		suite.testPut(c, http.Header{"Test": []string{"true"}})
+	})
+
+	suite.Run("WithCustomClient", func() {
+		c := suite.newClient(
+			WithHTTPClient(new(http.Client)),
+			WithRunner(
+				suite.newRunner(
+					retry.WithPolicyFactory[*http.Response](
+						retry.Config{
+							Interval: 5 * time.Second, // won't matter due to the immediate timer
+						},
+					),
+					retry.WithOnAttempt(CleanupResponse),
+					WithShouldRetry(http.StatusServiceUnavailable),
+					retry.WithImmediateTimer[*http.Response](),
+				),
+			),
+			WithRequesters(
+				func(request *http.Request) *http.Request {
+					request.Header.Set("Test", "true")
+					return request
+				},
+			),
+		)
+
+		suite.testPut(c, http.Header{"Test": []string{"true"}})
 	})
 }
 
