@@ -6,6 +6,7 @@ package retry
 import (
 	"errors"
 	"fmt"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -32,89 +33,51 @@ func (suite *ShouldRetrySuite) TestSetRetryable() {
 	}
 }
 
-func (suite *ShouldRetrySuite) TestNilError() {
-	suite.Run("NoPredicate", func() {
-		suite.False(CheckRetry(123, nil, nil))
+func (suite *ShouldRetrySuite) TestDefaultTestErrorForRetry() {
+	suite.Run("NilError", func() {
+		suite.False(DefaultTestErrorForRetry(nil))
 	})
 
-	suite.Run("WithPredicate", func() {
-		suite.False(CheckRetry(123, nil, func(int, error) bool { return true }))
-	})
-}
-
-func (suite *ShouldRetrySuite) TestShouldRetryable() {
-	suite.Run("NoPredicate", func() {
+	suite.Run("ShouldRetryable", func() {
+		err := errors.New("expected")
 		suite.True(
-			CheckRetry(
-				123,
-				SetRetryable(errors.New("expected"), true),
-				nil,
+			DefaultTestErrorForRetry(
+				SetRetryable(err, true),
 			),
 		)
 
 		suite.False(
-			CheckRetry(
-				123,
-				SetRetryable(errors.New("expected"), false),
-				nil,
+			DefaultTestErrorForRetry(
+				SetRetryable(err, false),
 			),
 		)
 	})
 
-	// the predicate should be used instead of the error
-	suite.Run("WithPredicate", func() {
-		suite.False(
-			CheckRetry(
-				123,
-				SetRetryable(errors.New("expected"), true),
-				func(int, error) bool { return false },
-			),
-		)
-
+	suite.Run("Temporary", func() {
 		suite.True(
-			CheckRetry(
-				123,
-				SetRetryable(errors.New("expected"), false),
-				func(int, error) bool { return true },
+			DefaultTestErrorForRetry(
+				&net.DNSError{
+					IsTemporary: true,
+				},
+			),
+		)
+
+		suite.False(
+			DefaultTestErrorForRetry(
+				&net.DNSError{
+					IsTemporary: false,
+				},
 			),
 		)
 	})
-}
 
-func (suite *ShouldRetrySuite) TestPredicate() {
-	expectedErr := errors.New("expected")
-
-	suite.True(
-		CheckRetry(
-			123,
-			expectedErr,
-			func(_ int, actualErr error) bool {
-				suite.Same(expectedErr, actualErr)
-				return true
-			},
-		),
-	)
-
-	suite.False(
-		CheckRetry(
-			123,
-			expectedErr,
-			func(_ int, actualErr error) bool {
-				suite.Same(expectedErr, actualErr)
-				return false
-			},
-		),
-	)
-}
-
-func (suite *ShouldRetrySuite) TestFallthrough() {
-	suite.True(
-		CheckRetry(
-			123,
-			errors.New("by default, all errors are retryable"),
-			nil,
-		),
-	)
+	suite.Run("NonNilError", func() {
+		suite.True(
+			DefaultTestErrorForRetry(
+				errors.New("expected"),
+			),
+		)
+	})
 }
 
 func TestShouldRetry(t *testing.T) {

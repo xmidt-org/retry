@@ -111,7 +111,11 @@ func (r *runner[V]) handleAttempt(p Policy, retries int, result V, err error) (i
 		Retries: retries,
 	}
 
-	shouldRetry = CheckRetry(result, err, r.shouldRetry)
+	if r.shouldRetry != nil {
+		shouldRetry = r.shouldRetry(result, err)
+	} else {
+		shouldRetry = DefaultTestErrorForRetry(err)
+	}
 
 	// slight optimization: if the error indicated no further retries, then there's no
 	// reason to consult the policy

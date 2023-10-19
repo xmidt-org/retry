@@ -36,34 +36,34 @@ func SetRetryable(err error, retryable bool) error {
 // warrant a retry.
 type ShouldRetry[V any] func(V, error) bool
 
-// CheckRetry encapsulates the logic around determining whether a task
-// retry is warranted.
+// DefaultTestErrorForRetry is the default strategy for determining whether a
+// retry should occur.  This function does not consider the value result from
+// a task.
 //
-// If err == nil, this function returns false.  No error is assumed to be
-// a success, so no further retries are necessary.
+// This function applies the following logic:
 //
-// If the ShouldRetry predicate is not nil, the result of calling that
-// predicate is returned by this function.
-//
-// If err != nil and it implements ShouldRetryable, the result of that
-// error's ShouldRetry method is returned by this function.
-//
-// Failing all the above tests, this function returns true.  In other words,
-// in the absence of any other indications, any non-nil error indicates
-// that the task should be retried.
-func CheckRetry[V any](result V, err error, p ShouldRetry[V]) bool {
-	var sr ShouldRetryable
-	switch {
-	case err == nil:
-		return false // successful task completion
-
-	case p != nil:
-		return p(result, err)
-
-	case errors.As(err, &sr):
-		return sr.ShouldRetry()
-
-	default:
-		return true // assume this task should be retried
+// - if err == nil, the task is assumed to be a success and this function returns false (no more retries)
+// - if err implements ShouldRetryable, then err.ShouldRetry() is returned
+// - if err supplies a Temporary() bool method, then err.Temporary() is returned
+// - failing other logic, this function returns true
+func DefaultTestErrorForRetry(err error) bool {
+	if err == nil {
+		return false // successful task result, so no retries are necessary
 	}
+
+	var sr ShouldRetryable
+	if errors.As(err, &sr) {
+		return sr.ShouldRetry()
+	}
+
+	type temporary interface {
+		Temporary() bool
+	}
+
+	var t temporary
+	if errors.As(err, &t) {
+		return t.Temporary()
+	}
+
+	return true
 }

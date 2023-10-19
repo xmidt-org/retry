@@ -190,6 +190,28 @@ func (suite *RunnerSuite) TestOptionError() {
 	suite.Same(expectedErr, actualErr)
 }
 
+// WithImmediateTimer ensures that the immediate timer works properly
+// when set via this option.
+func (suite *RunnerSuite) TestWithImmediateTimer() {
+	r := suite.newRunner(
+		WithImmediateTimer[int](),
+	)
+
+	t := r.(*runner[int]).timer
+	suite.Require().NotNil(t)
+
+	ch, stop := t(time.Minute)
+	select {
+	case <-ch:
+		// passing
+	case <-time.After(time.Second):
+		suite.Fail("The returned channel was not immediately signaled")
+	}
+
+	stop()
+	stop() // idempotent
+}
+
 func TestRunner(t *testing.T) {
 	suite.Run(t, new(RunnerSuite))
 }
