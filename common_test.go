@@ -91,7 +91,3 @@ func (suite *CommonSuite) newRunner(o ...RunnerOption[int]) Runner[int] {
 	suite.Require().NotNil(runner)
 	return runner
 }
-
-func (suite *CommonSuite) setTimer(r Runner[int], timer func(time.Duration) (<-chan time.Time, func() bool)) {
-	r.(*runner[int]).timer = timer
-}

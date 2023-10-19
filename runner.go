@@ -8,12 +8,6 @@ import (
 	"time"
 )
 
-// defaultTimer is the strategy used to create a timer using the stdlib.
-func defaultTimer(d time.Duration) (<-chan time.Time, func() bool) {
-	t := time.NewTimer(d)
-	return t.C, t.Stop
-}
-
 // RunnerOption is a configurable option for creating a task runner.
 type RunnerOption[V any] interface {
 	apply(*runner[V]) error
@@ -21,7 +15,23 @@ type RunnerOption[V any] interface {
 
 type runnerOptionFunc[V any] func(*runner[V]) error
 
-func (rof runnerOptionFunc[V]) apply(r *runner[V]) error { return rof(r) } //nolint:unused
+//nolint:unused
+func (rof runnerOptionFunc[V]) apply(r *runner[V]) error { return rof(r) }
+
+// WithTimer supplies a custom Timer for the Runner.  This option is primarily
+// useful for testing.
+func WithTimer[V any](t Timer) RunnerOption[V] {
+	return runnerOptionFunc[V](func(r *runner[V]) error {
+		r.timer = t
+		return nil
+	})
+}
+
+// WithImmediateTimer configures the Runner with a Timer that immediately
+// fires without waiting.  Useful mainly for unit tests.
+func WithImmediateTimer[V any]() RunnerOption[V] {
+	return WithTimer[V](immediateTimer)
+}
 
 // WithPolicyFactory returns a RunnerOption that assigns the given PolicyFactory
 // to the created task runner.
@@ -102,7 +112,11 @@ func (r *runner[V]) handleAttempt(p Policy, retries int, result V, err error) (i
 		Retries: retries,
 	}
 
-	shouldRetry = CheckRetry(result, err, r.shouldRetry)
+	if r.shouldRetry != nil {
+		shouldRetry = r.shouldRetry(result, err)
+	} else {
+		shouldRetry = DefaultTestErrorForRetry(err)
+	}
 
 	// slight optimization: if the error indicated no further retries, then there's no
 	// reason to consult the policy
@@ -159,14 +173,15 @@ func (r *runner[V]) Run(parentCtx context.Context, task Task[V]) (result V, err 
 
 // NewRunner creates a Runner using the supplied set of options.
 func NewRunner[V any](opts ...RunnerOption[V]) (Runner[V], error) {
-	r := &runner[V]{
-		timer: defaultTimer,
-	}
-
+	r := new(runner[V])
 	for _, o := range opts {
 		if err := o.apply(r); err != nil {
 			return nil, err
 		}
+	}
+
+	if r.timer == nil {
+		r.timer = defaultTimer
 	}
 
 	return r, nil

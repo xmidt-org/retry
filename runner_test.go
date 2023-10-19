@@ -16,17 +16,6 @@ type RunnerSuite struct {
 	CommonSuite
 }
 
-// TestDefaultTimer is just a smoke test to make sure the defaultTimer
-// operates basically as intended.
-func (suite *RunnerSuite) TestDefaultTimer() {
-	ch, stop := defaultTimer(100 * time.Millisecond)
-	suite.NotNil(ch)
-	suite.Require().NotNil(stop)
-
-	stop()
-	stop() // idempotent
-}
-
 func (suite *RunnerSuite) testRunNoRetries() {
 	var (
 		testCtx, _ = suite.testCtx()
@@ -63,6 +52,7 @@ func (suite *RunnerSuite) testRunWithRetriesUntilSuccess() {
 
 		retryErr = errors.New("should retry this")
 		runner   = suite.newRunner(
+			WithTimer[int](timer.Timer),
 			WithShouldRetry(func(_ int, err error) bool {
 				return errors.Is(err, retryErr)
 			}),
@@ -74,7 +64,6 @@ func (suite *RunnerSuite) testRunWithRetriesUntilSuccess() {
 	)
 
 	timer.ExpectConstant(5*time.Second, 3).Times(3)
-	suite.setTimer(runner, timer.Timer)
 
 	task.ExpectMatch(suite.assertTestCtx, -1, retryErr).Times(3)
 	task.ExpectMatch(suite.assertTestCtx, 123, nil).Once()
@@ -128,6 +117,7 @@ func (suite *RunnerSuite) testRunWithRetriesAndCanceled() {
 
 		retryErr = errors.New("should retry this")
 		runner   = suite.newRunner(
+			WithTimer[int](timer.Timer),
 			WithShouldRetry(func(_ int, err error) bool {
 				return errors.Is(err, retryErr)
 			}),
@@ -143,8 +133,6 @@ func (suite *RunnerSuite) testRunWithRetriesAndCanceled() {
 		testCancel()
 	})
 	timer.ExpectStop(true).Once()
-
-	suite.setTimer(runner, timer.Timer)
 
 	task.ExpectMatch(suite.assertTestCtx, -1, retryErr).Times(3)
 	onAttempt.ExpectMatch(
@@ -200,6 +188,28 @@ func (suite *RunnerSuite) TestOptionError() {
 
 	suite.Nil(runner)
 	suite.Same(expectedErr, actualErr)
+}
+
+// WithImmediateTimer ensures that the immediate timer works properly
+// when set via this option.
+func (suite *RunnerSuite) TestWithImmediateTimer() {
+	r := suite.newRunner(
+		WithImmediateTimer[int](),
+	)
+
+	t := r.(*runner[int]).timer
+	suite.Require().NotNil(t)
+
+	ch, stop := t(time.Minute)
+	select {
+	case <-ch:
+		// passing
+	case <-time.After(time.Second):
+		suite.Fail("The returned channel was not immediately signaled")
+	}
+
+	stop()
+	stop() // idempotent
 }
 
 func TestRunner(t *testing.T) {
