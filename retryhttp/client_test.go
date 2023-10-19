@@ -2,6 +2,7 @@ package retryhttp
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -287,6 +288,16 @@ func (suite *ClientSuite) TestPut() {
 
 		suite.testPut(c, http.Header{"Test": []string{"true"}})
 	})
+}
+
+func (suite *ClientSuite) TestOptionError() {
+	badOption := clientOptionFunc(func(c *Client) error {
+		return errors.New("expected")
+	})
+
+	c, err := NewClient(badOption)
+	suite.Error(err)
+	suite.Nil(c)
 }
 
 func TestClient(t *testing.T) {
