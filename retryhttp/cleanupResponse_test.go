@@ -43,7 +43,7 @@ func (suite *CleanupResponseSuite) TestDone() {
 		},
 	})
 
-	suite.Equal("test", body.Buffer.String())
+	suite.Equal("test", body.String())
 	suite.False(body.closed)
 }
 
@@ -62,7 +62,7 @@ func (suite *CleanupResponseSuite) TestNotDone() {
 		},
 	})
 
-	suite.Empty(body.Buffer.String())
+	suite.Empty(body.String())
 	suite.True(body.closed)
 }
 
