@@ -293,6 +293,46 @@ func (suite *ClientSuite) TestPut() {
 	})
 }
 
+// TestBodyReadableAfterDo checks that a response body can still be read once
+// Do has returned.  The runner cancels the context of the attempt as Run
+// returns, so a body that is still streaming at that point fails to read
+// with "context canceled".  The server flushes its headers, then pauses, so
+// the body is not yet buffered when Do returns.
+func (suite *ClientSuite) TestBodyReadableAfterDo() {
+	const size = 256 * 1024
+
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+		rw.(http.Flusher).Flush()
+		time.Sleep(20 * time.Millisecond)
+		rw.Write(bytes.Repeat([]byte("x"), size))
+	}))
+	defer server.Close()
+
+	c := suite.newClient(
+		WithRunner(
+			suite.newRunner(
+				retry.WithPolicyFactory[*http.Response](retry.Config{
+					Interval:   time.Millisecond,
+					MaxRetries: 1,
+				}),
+			),
+		),
+	)
+
+	request, err := http.NewRequest("GET", server.URL+"/test", nil)
+	suite.Require().NoError(err)
+
+	response, err := c.Do(request)
+	suite.Require().NoError(err)
+	suite.Require().NotNil(response)
+	defer response.Body.Close()
+
+	body, err := io.ReadAll(response.Body)
+	suite.NoError(err)
+	suite.Len(body, size)
+}
+
 func (suite *ClientSuite) TestOptionError() {
 	badOption := clientOptionFunc(func(c *Client) error {
 		return errors.New("expected")
