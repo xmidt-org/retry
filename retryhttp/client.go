@@ -45,6 +45,9 @@ func (cof clientOptionFunc) apply(c *Client) error { return cof(c) }
 
 // WithHTTPClient associates the given HTTP client with the Client being created.
 // If this option is not supplied, http.DefaultClient is used.
+//
+// The client's timeout is what bounds each attempt; see the package
+// documentation on timeouts.
 func WithHTTPClient(hc HTTPClient) ClientOption {
 	return clientOptionFunc(func(c *Client) error {
 		c.hc = hc
@@ -106,8 +109,13 @@ func (c *Client) newTask(original *http.Request) retry.Task[*http.Response] {
 	// before each attempt
 	getBody := original.GetBody
 
-	return func(ctx context.Context) (response *http.Response, err error) {
-		request := original.Clone(ctx)
+	// The attempt runs under the original request's context, not the
+	// runner's.  The runner cancels its context as Run returns, and a
+	// response body is still being read then.  The runner's context
+	// still decides whether another attempt starts; http.Client.Timeout
+	// bounds each attempt, body included.
+	return func(_ context.Context) (response *http.Response, err error) {
+		request := original.Clone(original.Context())
 		request.Body = nil // use this to detect if a Requester set a body
 
 		for _, r := range c.requesters {

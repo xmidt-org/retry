@@ -27,5 +27,22 @@ Typical usage:
 	  request, _ := http.NewRequest("GET", "https://foobar.com/", nil)
 	  response, err := client.Do(request)
 	  // normal response and error handling ...
+
+# Timeouts
+
+Each attempt runs under the request's own context, not one derived by the
+runner, so the response returned by Do() stays readable after Do() returns.
+Two limits apply, and they bound different things:
+
+  - retry.Config.MaxElapsedTime decides whether another attempt starts.
+    No attempt begins once it has elapsed.  It does not interrupt an
+    attempt already underway.
+
+  - http.Client.Timeout bounds each attempt, from connecting through
+    reading the response body.
+
+The worst case for one call to Do() is therefore MaxElapsedTime plus
+http.Client.Timeout.  An http.Client with no Timeout leaves each attempt
+bounded only by the request's context, so set one when using a runner.
 */
 package retryhttp
